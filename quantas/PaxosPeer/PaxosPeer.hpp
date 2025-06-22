@@ -62,7 +62,8 @@ namespace quantas{
         enum Status {
             IDLE,
             TRYING,
-            POLLING
+            POLLING,
+            CRASHED
         };
 
         Status status = IDLE;
@@ -97,52 +98,62 @@ namespace quantas{
         void                 endOfRound(const vector<Peer<PaxosPeerMessage>*>& _peers);
 
         // returns a NextBallot PaxosPeer message with unique sequence number
-        PaxosPeerMessage nextBallot();
+        PaxosPeerMessage     nextBallot();
         // returns a LastVote PaxosPeer message
-        PaxosPeerMessage lastMessage();
+        PaxosPeerMessage     lastMessage();
         // returns a BeginBallot PaxosPeer message
-        PaxosPeerMessage beginBallot();
+        PaxosPeerMessage     beginBallot();
         // returns a Voted PaxosPeer message
-        PaxosPeerMessage voted();
+        PaxosPeerMessage     voted();
         // returns a Success PaxosPeer message
-        PaxosPeerMessage success();
+        PaxosPeerMessage     success();
 
         // stores all data that is expected to remain if peer crashes
-        Ledger ledgerData;
+        Ledger               ledgerData;
 
         // stores all data that may be corrupted if peer crashes
-        Paper paperData;
+        Paper                paperData;
 
         // function that clears ledger and paper when slot changes
-        void clearState();
+        void                 clearState();
 
         // used for creating ballot/sequence numbers
-        int ballotIndex = 0;
+        int                  ballotIndex = 0;
 
         // vector of vectors of messages that have been received
         vector<vector<PaxosPeerMessage>> receivedMessages;
         // map of confirmed transactions, where key is slot number
         // and value is the message that reached consensus for that slot 
-        std::map<int,string>		    confirmedTrans;
+        std::map<int,string> confirmedTrans;
 
         // latency of successful ballots
-        int                             latency = 0;
+        int                  latency = 0;
         /// throughput of successful ballots
-        int                             throughput = 0;
+        int                  throughput = 0;
 
         // round number of when the last ballot was submitted. for tracking latency.
         // -1 if peer hasn't submitted a ballot yet.
-        int                             roundSent = -1;
+        int                  roundSent = -1;
+       
         // rate at which to submit transactions ie 1 in x chance for all n nodes
-        int                             submitRate = 20;
+        // not currently in use, might implement later
+        //int                submitRate = 20;
+
+        // rate at which nodes might crash and lose non-stable memory.
+        // unable to send messages during this time
+        // note: these crashes can only happen during the end of a round
+        int                  crashRate = 10;
+        // used for tracking how long a peer has been crashed
+        int                  crashTimer = -1; 
+        void                 crash();
 
         // AAA
-        void                  checkInStrm();
+        void                 checkInStrm();
         // Used for submitting a new ballot to vote on
-        void                  submitBallot();
+        void                 submitBallot();
         
         // direct messages between peers
-        void sendMessage(long, PaxosPeerMessage);
+        void                 sendMessage(long, PaxosPeerMessage);
 
     };
 
