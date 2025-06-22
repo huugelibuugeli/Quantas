@@ -2,11 +2,11 @@
   "experiments": [
     {
       "algorithm": "Paxos",
-      "logFile": "PaxosDelay1.txt",
+      "logFile": "PaxosDelay2.txt",
       "threadCount": 1,
       "distribution": {
         "type": "uniform",
-        "maxDelay": 1
+        "maxDelay": 2
       },
       "topology": {
         "type": "complete",
@@ -18,11 +18,11 @@
     },
         {
       "algorithm": "Paxos",
-      "logFile": "PaxosDelay3.txt",
+      "logFile": "PaxosDelay4.txt",
       "threadCount": 1,
       "distribution": {
         "type": "uniform",
-        "maxDelay": 3
+        "maxDelay": 4
       },
       "topology": {
         "type": "complete",
@@ -34,11 +34,11 @@
     },
     {
       "algorithm": "Paxos",
-      "logFile": "PaxosDelay5.txt",
+      "logFile": "PaxosDelay6.txt",
       "threadCount": 1,
       "distribution": {
         "type": "uniform",
-        "maxDelay": 5
+        "maxDelay": 6
       },
       "topology": {
         "type": "complete",
@@ -50,11 +50,11 @@
     },
         {
       "algorithm": "Paxos",
-      "logFile": "PaxosDelay7.txt",
+      "logFile": "PaxosDelay8.txt",
       "threadCount": 1,
       "distribution": {
         "type": "uniform",
-        "maxDelay": 7
+        "maxDelay": 8
       },
       "topology": {
         "type": "complete",
@@ -66,11 +66,11 @@
     },
     {
       "algorithm": "Paxos",
-      "logFile": "PaxosDelay10.txt",
+      "logFile": "PaxosDelay9.txt",
       "threadCount": 1,
       "distribution": {
         "type": "uniform",
-        "maxDelay": 10
+        "maxDelay": 9
       },
       "topology": {
         "type": "complete",
@@ -82,11 +82,11 @@
     },
     {
       "algorithm": "Paxos",
-      "logFile": "PaxosDelay12.txt",
+      "logFile": "PaxosDelay11.txt",
       "threadCount": 1,
       "distribution": {
         "type": "uniform",
-        "maxDelay": 12
+        "maxDelay": 11
       },
       "topology": {
         "type": "complete",

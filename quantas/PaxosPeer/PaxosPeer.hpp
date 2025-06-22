@@ -140,11 +140,12 @@ namespace quantas{
         //int                submitRate = 20;
 
         // rate at which nodes might crash and lose non-stable memory.
-        // unable to send messages during this time
+        // unable to send messages during this time. probability of crash is 1 / crashRate
         // note: these crashes can only happen during the end of a round
-        int                  crashRate = 10;
+        int                  crashRate = 0;
         // used for tracking how long a peer has been crashed
-        int                  crashTimer = -1; 
+        int                  crashTimer = -1;
+        // crash logic implementation
         void                 crash();
 
         // AAA

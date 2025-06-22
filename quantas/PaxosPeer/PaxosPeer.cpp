@@ -263,20 +263,22 @@ namespace quantas {
 	}
 
 	void PaxosPeer::crash() {
-		if (0 == randMod(crashRate) && paperData.status != Paper::CRASHED) {
-			Ledger tmp = ledgerData;
-			clearState();
-			// note: ledgerData assigned to tmp because peer retains ledger data during crash
-			ledgerData = tmp;
-			paperData.status = Paper::CRASHED;
-			crashTimer = 0;
-			std::cerr << "peer " << id() << " crashed" << std::endl;
-		}
-		else if (paperData.status == Paper::CRASHED) {
-			if (crashTimer >= 2)
-				paperData.status = Paper::IDLE;
-			else
-				++crashTimer;
+		if (crashRate != 0) {
+			if (0 == randMod(crashRate) && paperData.status != Paper::CRASHED) {
+				Ledger tmp = ledgerData;
+				clearState();
+				// note: ledgerData assigned to tmp because peer retains ledger data during crash
+				ledgerData = tmp;
+				paperData.status = Paper::CRASHED;
+				crashTimer = 0;
+				std::cerr << "peer " << id() << " crashed" << std::endl;
+			}
+			else if (paperData.status == Paper::CRASHED) {
+				if (crashTimer >= 2)
+					paperData.status = Paper::IDLE;
+				else
+					++crashTimer;
+			}
 		}
 	}
 
