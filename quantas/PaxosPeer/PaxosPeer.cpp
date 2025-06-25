@@ -36,7 +36,6 @@ namespace quantas {
 	void PaxosPeer::checkInStrm() {
 		while(!inStreamEmpty() && paperData.status != Paper::CRASHED) {
 			PaxosPeerMessage newMsg = popInStream().getMessage();
-
 			if (newMsg.messageType == "NextBallot" && newMsg.slotNumber == ledgerData.currentSlot) {
 				if (newMsg.ballotNum > ledgerData.nextBal && newMsg.ballotNum > ledgerData.lastTried) {
 					if (paperData.status != Paper::IDLE) {
@@ -244,7 +243,7 @@ namespace quantas {
 		// checks that peer can submit a new ballot and that peer is waiting on ballot
 		if (paperData.status == Paper::IDLE && ledgerData.nextBal.first != -1) {
 			// currently this wait time is arbitrarily decided
-			if (paperData.timer > 8) {
+			if (paperData.timer > messageWait) {
 				//std::cerr << "timer ran out" << std::endl;
 				PaxosPeerMessage ballot = nextBallot();
 				//std::cerr << "Peer " << id() << " sending NextBallot with ballot number " << ballot.ballotNum.first << " " << ballot.ballotNum.second << std::endl;
@@ -270,14 +269,21 @@ namespace quantas {
 				// note: ledgerData assigned to tmp because peer retains ledger data during crash
 				ledgerData = tmp;
 				paperData.status = Paper::CRASHED;
-				crashTimer = 0;
-				std::cerr << "peer " << id() << " crashed" << std::endl;
+				//crashTimer = 0; crash timer old code
+				//std::cerr << "peer " << id() << " crashed" << std::endl;
 			}
 			else if (paperData.status == Paper::CRASHED) {
-				if (crashTimer >= 2)
+				if (0 == randMod(recoveryRate)) {
+					paperData.status = Paper::IDLE;
+				}
+
+				// old code using crash timer instead of recovery probability
+				/*
+				if (crashTimer >= 3)
 					paperData.status = Paper::IDLE;
 				else
 					++crashTimer;
+				*/
 			}
 		}
 	}
@@ -304,6 +310,13 @@ namespace quantas {
 		LogWriter::getTestLog()["latency"].push_back(lat / satisfied);
 		LogWriter::getTestLog()["throughput"].push_back(satisfied);
 
+		// setting wait times to latency
+		// should probably upgrade in the future
+		if (lat != 0) {
+			for (int i = 0; i < peers.size(); ++i) {
+				peers[i]->messageWait = lat + 1;
+			}
+		}
 		/*
 		if(id() == 0) {
 			

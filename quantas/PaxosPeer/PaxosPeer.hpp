@@ -134,19 +134,27 @@ namespace quantas{
         // round number of when the last ballot was submitted. for tracking latency.
         // -1 if peer hasn't submitted a ballot yet.
         int                  roundSent = -1;
+
+        // how long a peer decides to wait for a message
+        // updated based on latency. 12 is large starting value
+        int                  messageWait = 12;
        
         // rate at which to submit transactions ie 1 in x chance for all n nodes
         // not currently in use, might implement later
         //int                submitRate = 20;
 
-        // rate at which nodes might crash and lose non-stable memory.
-        // unable to send messages during this time. probability of crash is 1 / crashRate
+        // rate at which peers might crash and lose non-stable memory.
+        // unable to send messages during this time. probability of crash = 1 / crashRate
         // note: these crashes can only happen during the end of a round
-        int                  crashRate = 0;
+        int                  crashRate = 10;
         // used for tracking how long a peer has been crashed
-        int                  crashTimer = -1;
+        // int                  crashTimer = -1; 
         // crash logic implementation
         void                 crash();
+
+        // rate at which peers will recover if they crash
+        // if crashed has 1 / recoveryRate chance of returning
+        int                  recoveryRate = 5; 
 
         // AAA
         void                 checkInStrm();

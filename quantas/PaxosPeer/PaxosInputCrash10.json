@@ -2,7 +2,7 @@
   "experiments": [
     {
       "algorithm": "Paxos",
-      "logFile": "PaxosDelay1.txt",
+      "logFile": "PaxosDelay1Crash10.txt",
       "threadCount": 1,
       "distribution": {
         "type": "uniform",
@@ -18,7 +18,7 @@
     },
     {
       "algorithm": "Paxos",
-      "logFile": "PaxosDelay2.txt",
+      "logFile": "PaxosDelay2Crash10.txt",
       "threadCount": 1,
       "distribution": {
         "type": "uniform",
@@ -34,7 +34,7 @@
     },
     {
       "algorithm": "Paxos",
-      "logFile": "PaxosDelay3.txt",
+      "logFile": "PaxosDelay3Crash10.txt",
       "threadCount": 1,
       "distribution": {
         "type": "uniform",
@@ -48,9 +48,9 @@
       "tests": 30,
       "rounds": 100
     },
-        {
+    {
       "algorithm": "Paxos",
-      "logFile": "PaxosDelay4.txt",
+      "logFile": "PaxosDelay4Crash10.txt",
       "threadCount": 1,
       "distribution": {
         "type": "uniform",
@@ -66,7 +66,7 @@
     },
     {
       "algorithm": "Paxos",
-      "logFile": "PaxosDelay5.txt",
+      "logFile": "PaxosDelay5Crash10.txt",
       "threadCount": 1,
       "distribution": {
         "type": "uniform",
@@ -82,7 +82,7 @@
     },
     {
       "algorithm": "Paxos",
-      "logFile": "PaxosDelay6.txt",
+      "logFile": "PaxosDelay6Crash10.txt",
       "threadCount": 1,
       "distribution": {
         "type": "uniform",
@@ -98,7 +98,7 @@
     },
     {
       "algorithm": "Paxos",
-      "logFile": "PaxosDelay7.txt",
+      "logFile": "PaxosDelay7Crash10.txt",
       "threadCount": 1,
       "distribution": {
         "type": "uniform",
@@ -114,7 +114,7 @@
     },
     {
       "algorithm": "Paxos",
-      "logFile": "PaxosDelay8.txt",
+      "logFile": "PaxosDelay8Crash10.txt",
       "threadCount": 1,
       "distribution": {
         "type": "uniform",
@@ -130,7 +130,7 @@
     },
     {
       "algorithm": "Paxos",
-      "logFile": "PaxosDelay9.txt",
+      "logFile": "PaxosDelay9Crash10.txt",
       "threadCount": 1,
       "distribution": {
         "type": "uniform",
@@ -146,7 +146,7 @@
     },
     {
       "algorithm": "Paxos",
-      "logFile": "PaxosDelay10.txt",
+      "logFile": "PaxosDelay10Crash10.txt",
       "threadCount": 1,
       "distribution": {
         "type": "uniform",
@@ -162,7 +162,7 @@
     },
     {
       "algorithm": "Paxos",
-      "logFile": "PaxosDelay11.txt",
+      "logFile": "PaxosDelay11Crash10.txt",
       "threadCount": 1,
       "distribution": {
         "type": "uniform",
@@ -178,7 +178,7 @@
     },
     {
       "algorithm": "Paxos",
-      "logFile": "PaxosDelay12.txt",
+      "logFile": "PaxosDelay12Crash10.txt",
       "threadCount": 1,
       "distribution": {
         "type": "uniform",
