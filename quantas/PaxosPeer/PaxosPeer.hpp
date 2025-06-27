@@ -7,7 +7,9 @@ QUANTAS is distributed in the hope that it will be useful, but WITHOUT ANY WARRA
 You should have received a copy of the GNU General Public License along with QUANTAS. If not, see <https://www.gnu.org/licenses/>.
 */
 
-//Note: This implementation of Paxos represents classic Multi-Paxos (meaning no leader with multiple rounds of consensus)
+//Note 1: This implementation of Paxos represents classic Multi-Paxos (meaning no leader with multiple rounds of consensus)
+
+//Note 2: To become more comfortable with the naming conventions used here, it is worth reading Lamport's Part-time Parliament paper
 
 #ifndef PaxosPeer_hpp
 #define PaxosPeer_hpp
@@ -27,7 +29,7 @@ namespace quantas{
     struct PaxosPeerMessage {
         int                 Id = -1;
         std::pair<int,int>  lastVoted = {-1,-1}; // used for lastVote message. -1 if irrelavent
-        std::pair<int,int>  ballotNum = {-1,-1}; // note: no need for separate id variable. stored in second
+        std::pair<int,int>  ballotNum = {-1,-1}; 
         string              messageType = "";
         string              decree = ""; // decree
         int                 slotNumber      = -1; // slot number
@@ -36,7 +38,8 @@ namespace quantas{
 
     // ledger contains peer data considered crash safe (stored in stable memory)
     struct Ledger {
-        // number last ballot that peer tried to initiate (-1 if the peer hasn't attempted to initiate a ballot)
+        // number of last ballot that peer tried to initiate
+        // (-1 if the peer hasn't attempted to initiate a ballot)
         std::pair<int,int> lastTried = {-1,-1};
 
         // number of ballot for which peer last voted for (-1 if peer has never voted)
@@ -52,7 +55,8 @@ namespace quantas{
         // successful ballot decree
         string outcome = "";
 
-        // slot number (essential for multi-paxos). indicates what slot peer is trying to achieve consensus for
+        // slot number (essential for multi-paxos).
+        // indicates what slot peer is trying to achieve consensus for
         int currentSlot = 0;
     };
 
@@ -62,7 +66,8 @@ namespace quantas{
         enum Status {
             IDLE,
             TRYING,
-            POLLING
+            POLLING,
+            CRASHED
         };
 
         Status status = IDLE;
@@ -79,7 +84,8 @@ namespace quantas{
         // if peer is polling then decree of current ballot (otherwise -1)
         int paperDecree = -1;
 
-        // STILL FIGURING THIS OUT
+        // how long a peer has waited for progress
+        // from peer initiating a ballot
         int timer = 0;
 
     };
@@ -96,53 +102,74 @@ namespace quantas{
         // perform any calculations needed at the end of a round such as determine throughput (only ran once, not for every peer)
         void                 endOfRound(const vector<Peer<PaxosPeerMessage>*>& _peers);
 
-        // returns a NextBallot PaxosPeer message with unique sequence number
-        PaxosPeerMessage nextBallot();
+        // returns a NextBallot PaxosPeer message with unique ballot number
+        PaxosPeerMessage     nextBallot();
         // returns a LastVote PaxosPeer message
-        PaxosPeerMessage lastMessage();
+        PaxosPeerMessage     lastMessage();
         // returns a BeginBallot PaxosPeer message
-        PaxosPeerMessage beginBallot();
+        PaxosPeerMessage     beginBallot();
         // returns a Voted PaxosPeer message
-        PaxosPeerMessage voted();
+        PaxosPeerMessage     voted();
         // returns a Success PaxosPeer message
-        PaxosPeerMessage success();
+        PaxosPeerMessage     success();
 
         // stores all data that is expected to remain if peer crashes
-        Ledger ledgerData;
+        Ledger               ledgerData;
 
         // stores all data that may be corrupted if peer crashes
-        Paper paperData;
+        Paper                paperData;
 
         // function that clears ledger and paper when slot changes
-        void clearState();
+        void                 clearState();
 
         // used for creating ballot/sequence numbers
-        int ballotIndex = 0;
+        int                  ballotIndex = 0;
 
         // vector of vectors of messages that have been received
         vector<vector<PaxosPeerMessage>> receivedMessages;
         // map of confirmed transactions, where key is slot number
         // and value is the message that reached consensus for that slot 
-        std::map<int,string>		    confirmedTrans;
+        std::map<int,string> confirmedTrans;
 
         // latency of successful ballots
-        int                             latency = 0;
-        /// throughput of successful ballots
-        int                             throughput = 0;
+        int                  latency = 0;
+        // throughput of successful ballots
+        int                  throughput = 0;
 
         // round number of when the last ballot was submitted. for tracking latency.
         // -1 if peer hasn't submitted a ballot yet.
-        int                             roundSent = -1;
-        // rate at which to submit transactions ie 1 in x chance for all n nodes
-        int                             submitRate = 20;
+        int                  roundSent = -1;
 
-        // AAA
-        void                  checkInStrm();
+        // how long a peer decides to wait for a message
+        // updated based on latency. 12 is large starting value
+        int                  messageWait = 12;
+       
+        // rate at which to submit transactions ie 1 in x chance for all n nodes
+        // not currently in use, might implement later
+        //int                submitRate = 20;
+
+        // rate at which peers might crash and lose non-stable memory.
+        // unable to send messages during this time. probability of crash = 1 / crashRate
+        // note: these crashes can only happen during the end of a round
+        // 0 if no desire for crashing
+        int                  crashRate = 0;
+        // used for tracking how long a peer has been crashed
+        // int                  crashTimer = -1; 
+        // crash logic implementation
+        void                 crash();
+
+        // rate at which peers will recover if they crash
+        // if crashed has 1 / recoveryRate chance of returning
+        // 0 if no desire for recovery
+        int                  recoveryRate = 0; 
+
+        // checks instream for messages
+        void                 checkInStrm();
         // Used for submitting a new ballot to vote on
-        void                  submitBallot();
+        void                 submitBallot();
         
         // direct messages between peers
-        void sendMessage(long, PaxosPeerMessage);
+        void                 sendMessage(long, PaxosPeerMessage);
 
     };
 
