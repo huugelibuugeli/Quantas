@@ -98,12 +98,9 @@ namespace quantas {
 						latency += getRound() - roundSent;
 						++throughput;
 
-						// once consensus is achieved the peer starts working on next slot
+						confirmedTrans.insert(std::make_pair(ledgerData.currentSlot,ledgerData.outcome));
 
-						auto check = confirmedTrans.insert(std::make_pair(ledgerData.currentSlot,ledgerData.outcome));
-						if (!check.second) {
-							std::cerr << "The key already existed!" << std::endl;
-						}
+						// once consensus is achieved the peer starts working on next slot
 						++ledgerData.currentSlot;
 						int tmpSlot = ledgerData.currentSlot;
 						clearState();
@@ -113,10 +110,7 @@ namespace quantas {
 			}
 			else if (newMsg.messageType == "Success" ) {
 				ledgerData.outcome = newMsg.decree;
-				std::cerr << "outcome was: " << ledgerData.outcome << " for slot " << ledgerData.currentSlot << std::endl;
-				auto check = confirmedTrans.insert(std::make_pair(newMsg.slotNumber,newMsg.decree));
-				if (!check.second)
-					std::cerr << "key already existed" << std::endl;
+				confirmedTrans.insert(std::make_pair(newMsg.slotNumber,newMsg.decree));
 				++ledgerData.currentSlot;
 				int tmpSlot = ledgerData.currentSlot; 
 				clearState(); // sets ledger to default values so slot must be set again
