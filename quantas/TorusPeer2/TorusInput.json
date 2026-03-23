@@ -1,6 +1,7 @@
 {
   "algorithms": [
-    "TorusPeer2/TorusPeer.cpp"
+    "TorusPeer2/TorusPeer.cpp",
+    "TorusPeer2/TorusPeerState.cpp"
   ],
   "experiments": [
     {
@@ -16,7 +17,7 @@
       },
       "topology": {
         "type": "complete",
-        "initialPeers": 10,
+        "initialPeers": 50,
         "initialPeerType": "TorusPeer"
       },
       "tests": 1,
