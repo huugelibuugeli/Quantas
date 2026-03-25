@@ -27,6 +27,13 @@ bool TorusPeer::hasHole() {
         return false;
 }
 
+void TorusPeer::changeState() {
+    
+    std::cerr << "CHANGE STATE WAS CALLED\n";
+    _state = std::make_unique<JoinedState>(this);
+
+}
+
 // returns indexes of all peers that have a hole
 std::vector<std::pair<std::pair<double,double>,double>> TorusPeer::findHoles(std::vector<Peer*> peers) {
 
@@ -44,17 +51,6 @@ std::vector<std::pair<std::pair<double,double>,double>> TorusPeer::findHoles(std
         if (p->hasHole() && p->_state->isJoined())
             allHoles.push_back(std::make_pair(p->_index, p->_funds));
     }
-
-    /*
-    TorusPeer* closest = peersWithHole[0];
-    double fundGap = std::abs(closest->_funds - _funds);
-    for (auto p : peersWithHole) {
-        double tmpGap = std::abs(p->_funds - _funds);
-        if (tmpGap < fundGap) {
-            fundGap = tmpGap;
-            closest = p;
-        }
-    }*/
 
     //return closest->_index;
 
@@ -97,13 +93,13 @@ void TorusPeer::initParameters(const std::vector<Peer*>& peers, json parameters)
     for (auto* p : typed) {
         p->_funds = randMod(parameters["maxFunds"]);
         p->_bootStrap = peers[0]->publicId();
-        p->_state = new NotJoinedState(p);
+        p->_state = std::make_unique<NotJoinedState>(p);
         allJoined.push_back(std::make_pair(p->_index, p->publicId()));
         std::cerr << p->_funds << " ";
     }
 
     typed[0]->_isBootStrap = true;
-    typed[0]->changeState(new JoinedState(typed[0]));
+    typed[0]->changeState();
     typed[0]->_index = {0.5,0.5};
 
     // for global knowledge implementation
@@ -146,22 +142,6 @@ std::pair<interfaceId,interfaceId> TorusPeer::findSameRC(std::pair<double,double
             else if (coord.first < i.first.first) {
                 sameRCGreater.push_back(std::make_pair(dist, i.second));
             }
-
-            /*
-            std::cerr << "thi thithi hi thi thth hit AYAYAYAYYAYA\n";
-            if (coord.first > i.first.first) {
-                if ((coord.first - i.first.first < closestLessDist) || (closestLessDist == -1)) {
-                    closestLessDist = coord.first - i.first.first;
-                    closestLessPeer = i.second;
-                }
-            }
-            else if (coord.first < i.first.first) {
-                if ((i.first.first - coord.first < closestGreaterDist) || (closestGreaterDist == -1)) {
-                    closestGreaterDist = i.first.first - coord.first;
-                    closestGreaterPeer = i.second;
-                }
-            }
-                */
         }
         else if (RC == 'c' && coord.first == i.first.first && coord != i.first) {
 
@@ -172,23 +152,6 @@ std::pair<interfaceId,interfaceId> TorusPeer::findSameRC(std::pair<double,double
             else if (coord.second < i.first.second) {
                 sameRCGreater.push_back(std::make_pair(dist, i.second));
             }
-
-            /*
-            std::cerr << "THIS WAS TRUEE E E E E E E E E E E\n"; 
-            if (coord.second > i.first.second) {
-                if ((coord.second - i.first.second < closestLessDist) || (closestLessDist == -1)) {
-                    closestLessDist = coord.second - i.first.second;
-                    closestLessPeer = i.second;
-                }
-            }
-            else if (coord.second < i.first.second) {
-                if ((i.first.second - coord.second < closestGreaterDist) || (closestGreaterDist == -1)) {
-                    closestGreaterDist = i.first.second - coord.second;
-                    closestGreaterPeer = i.second;
-                }
-            }
-            */
-            
         }
     }
 
@@ -222,280 +185,6 @@ std::pair<interfaceId,interfaceId> TorusPeer::findSameRC(std::pair<double,double
 
     return std::make_pair(downPeer,upPeer);
 }
-
-/*
-std::pair<double, double> TorusPeer::createIndex(std::string location, 
-    INDEX srcIndex, INDEX nextOver)
-{
-
-    std::cerr << "src " << srcIndex.first << " " << srcIndex.second << "\n";
-    std::cerr << "next " << nextOver.first << " " << nextOver.second << "\n";
-    std::cerr << "location: " << location << "\n";
-
-    std::pair<double,double> index;
-
-    std::pair<interfaceId,interfaceId> nilPair = {-1,-1};
-
-    if (location == "up" || location == "down") {
-        index.first = srcIndex.first;
-
-        // ensures that index for down is always less
-        // and index for up is always more 
-        //if (srcIndex != nextOver && nextOver.second != -1)
-        //    index.second = (srcIndex.second + nextOver.second) / 2;
-
-        // build up case
-        if (location == "up") {
-
-            if (srcIndex != nextOver && nextOver.second != -1) {
-                if (srcIndex.second < nextOver.second) {
-                    index.second = (srcIndex.second + nextOver.second) / 2;
-                }
-                else {
-                    index.second = (srcIndex.second + 1) / 2;
-                }
-            }
-
-            else {
-            //index.second = (srcIndex.second + 1) / 2;
-
-            INDEX tmpIndex1 = {(srcIndex.first + 1)/2, srcIndex.second};
-            INDEX tmpIndex2 = {srcIndex.first / 2, srcIndex.second};
-            std::pair<interfaceId,interfaceId> sameRC1 = findSameRC(tmpIndex1, 'c');
-            std::pair<interfaceId,interfaceId> sameRC2 = findSameRC(tmpIndex2, 'c');
-            if (sameRC1 == nilPair && sameRC2 == nilPair) {
-                index.second = (srcIndex.second + 1) / 2;
-            }
-            else {
-                // global knowledge approach
-                INDEX closestNextAbove = {-1,-1};
-                INDEX closestNextBelow = {-1,-1};
-                for (auto i : _allJoined) {
-                    if (i.second == sameRC1.second) {
-                        closestNextAbove = i.first;
-                        break;
-                    }
-                }
-                for (auto i : _allJoined) {
-                    if (i.second == sameRC2.second) {
-                        closestNextBelow = i.first;
-                        break;
-                    }
-                }
-                if (closestNextBelow.second > srcIndex.second && closestNextAbove.second > srcIndex.second) {
-                    if ((closestNextAbove.first - srcIndex.first) < (srcIndex.first - closestNextBelow.first)) {
-                        index.second = closestNextAbove.second;
-                    }
-                    else {
-                        index.second = closestNextBelow.second;
-                    }
-                }
-                else if (closestNextBelow.second != -1) {
-                    if (closestNextBelow.second > srcIndex.second) {
-                        index.second = closestNextBelow.second;
-                    }
-                    else {
-                        index.second = (srcIndex.second + 1) / 2;
-                    }
-                }
-                else if (closestNextAbove.second != -1) {
-                    if (closestNextAbove.second > srcIndex.second) {
-                        index.second = closestNextAbove.second;
-                    }
-                    else {
-                        index.second = (srcIndex.second + 1) / 2;
-                    }
-                }
-                else {
-                    index.second = (srcIndex.second + 1) / 2;
-                }
-            }
-        }
-
-        // build down case
-        else {
-            INDEX tmpIndex1 = {(srcIndex.first + 1) / 2, srcIndex.second};
-            INDEX tmpIndex2 = {srcIndex.first / 2, srcIndex.second};
-            std::pair<interfaceId,interfaceId> sameRC1 = findSameRC(tmpIndex1, 'c');
-            std::pair<interfaceId,interfaceId> sameRC2 = findSameRC(tmpIndex2, 'c');
-            if (sameRC1 == nilPair && sameRC2 == nilPair) {
-                index.second = srcIndex.second / 2;
-            }
-            else {
-                
-                // global knowledge approach
-                INDEX closestNextAbove = {-1,-1};
-                INDEX closestNextBelow = {-1,-1};
-                for (auto i : _allJoined) {
-                    if (i.second == sameRC1.first) {
-                        closestNextAbove = i.first;
-                        break;
-                    }
-                }
-                for (auto i : _allJoined) {
-                    if (i.second == sameRC2.first) {
-                        closestNextBelow = i.first;
-                        break;
-                    }
-                }
-                if (closestNextBelow.second < srcIndex.second && closestNextAbove.second < srcIndex.second
-                    && closestNextBelow.second != -1 && closestNextAbove.second != -1) {
-                    if ((srcIndex.second - closestNextAbove.second) < (closestNextBelow.second - srcIndex.second)) {
-                        index.second = closestNextAbove.second;
-                    }
-                    else {
-                        index.second = closestNextBelow.second;
-                    }
-                }
-                else if (closestNextBelow.first != -1) {
-                    if (closestNextBelow.second < srcIndex.second) {
-                        index.second = closestNextBelow.second;
-                    }
-                    else {
-                        index.second = srcIndex.second / 2;
-                    }
-                }
-                else if (closestNextAbove.first != -1) {
-                    if (closestNextAbove.second < srcIndex.second) {
-                        index.second = closestNextAbove.second;
-                    }
-                    else {
-                        index.second = srcIndex.second / 2;
-                    }
-                }
-                else {
-                    index.second = srcIndex.second / 2;
-                }
-            }
-        }
-    }
-    else {
-        index.second = srcIndex.second;
-
-        if (srcIndex != nextOver && nextOver.first != -1)
-            index.first = (srcIndex.first + nextOver.first) / 2;
-
-        // build right case
-        else if (location == "right") {
-
-            // old solution
-            //index.first = (srcIndex.first + 1) / 2;
-
-
-            INDEX tmpIndex1 = {srcIndex.first, (srcIndex.second + 1) * 2};
-            INDEX tmpIndex2 = {srcIndex.first, srcIndex.second / 2};
-            std::pair<interfaceId,interfaceId> sameRC1 = findSameRC(tmpIndex1, 'r');
-            std::pair<interfaceId,interfaceId> sameRC2 = findSameRC(tmpIndex2, 'r');
-            if (sameRC1 == nilPair && sameRC2 == nilPair) {
-                index.first = (srcIndex.first + 1) / 2;
-            }
-            else {
-                // global knowledge approach
-                INDEX closestNextAbove = {-1,-1};
-                INDEX closestNextBelow = {-1,-1};
-                for (auto i : _allJoined) {
-                    if (i.second == sameRC1.second) {
-                        closestNextAbove = i.first;
-                        break;
-                    }
-                }
-                for (auto i : _allJoined) {
-                    if (i.second == sameRC2.second) {
-                        closestNextBelow = i.first;
-                        break;
-                    }
-                }
-                if (closestNextBelow.first > srcIndex.first && closestNextAbove.first > srcIndex.first) {
-                    if ((closestNextAbove.first - srcIndex.first) < (srcIndex.first - closestNextBelow.first)) {
-                        index.first = closestNextAbove.first;
-                    }
-                    else {
-                        index.first = closestNextBelow.first;
-                    }
-                }
-                else if (closestNextBelow.first != -1) {
-                    if (closestNextBelow.first > srcIndex.first) {
-                        index.first = closestNextBelow.first;
-                    }
-                    else {
-                        index.first = (srcIndex.first + 1) / 2;
-                    }
-                }
-                else if (closestNextAbove.first != -1) {
-                    if (closestNextAbove.first > srcIndex.first) {
-                        index.first = closestNextAbove.first;
-                    }
-                    else {
-                        index.first = (srcIndex.first + 1) / 2;
-                    }
-                }
-                else {
-                    index.first = (srcIndex.first + 1) / 2;
-                }
-            }
-        }
-        // build left case
-        else {
-            INDEX tmpIndex1 = {srcIndex.first, (srcIndex.second + 1) * 2};
-            INDEX tmpIndex2 = {srcIndex.first, srcIndex.second / 2};
-            std::pair<interfaceId,interfaceId> sameRC1 = findSameRC(tmpIndex1, 'r');
-            std::pair<interfaceId,interfaceId> sameRC2 = findSameRC(tmpIndex2, 'r');
-            if (sameRC1 == nilPair && sameRC2 == nilPair) {
-                index.first = srcIndex.first / 2;
-            }
-            else {
-                
-                // global knowledge approach
-                INDEX closestNextAbove = {-1,-1};
-                INDEX closestNextBelow = {-1,-1};
-                for (auto i : _allJoined) {
-                    if (i.second == sameRC1.first) {
-                        closestNextAbove = i.first;
-                        break;
-                    }
-                }
-                for (auto i : _allJoined) {
-                    if (i.second == sameRC2.first) {
-                        closestNextBelow = i.first;
-                        break;
-                    }
-                }
-                if (closestNextBelow.first < srcIndex.first && closestNextAbove.first < srcIndex.first
-                    && closestNextBelow.first != -1 && closestNextAbove.first != -1) {
-                    if ((srcIndex.first - closestNextAbove.first) < (closestNextBelow.first - srcIndex.first)) {
-                        index.first = closestNextAbove.first;
-                    }
-                    else {
-                        index.first = closestNextBelow.first;
-                    }
-                }
-                else if (closestNextBelow.first != -1) {
-                    if (closestNextBelow.first < srcIndex.first) {
-                        index.first = closestNextBelow.first;
-                    }
-                    else {
-                        index.first = srcIndex.first / 2;
-                    }
-                }
-                else if (closestNextAbove.first != -1) {
-                    if (closestNextAbove.first < srcIndex.first) {
-                        index.first = closestNextAbove.first;
-                    }
-                    else {
-                        index.first = srcIndex.first / 2;
-                    }
-                }
-                else {
-                    index.first = srcIndex.first / 2;
-                }
-            }
-        }
-    }
-
-    std::cerr << publicId() << " created index: " << index.first << " " << index.second << "\n";
-
-    return index;
-}*/
 
 INDEX TorusPeer::createIndex(std::string location, INDEX srcIndex, INDEX nextOver) {
 
@@ -536,201 +225,6 @@ INDEX TorusPeer::createIndex(std::string location, INDEX srcIndex, INDEX nextOve
         return {-1,-1};
     }
 }
-
-/*
-void TorusPeer::createChannels(json msg) {
-
-    std::cerr << "Received channel message from peer " << msg["from"] << " to create channel in direction " << msg["location"] << std::endl;
-
-    if (msg["location"] == "up") {
-        _state->createUpChannel(msg);
-    }
-    else if (msg["location"] == "down") {
-        _state->createDownChannel(msg);
-    }
-    else if (msg["location"] == "right") {
-        _state->createRightChannel(msg);
-    }
-    else if (msg["location"] == "left") {
-        _state->createLeftChannel(msg);
-    }
-}*/
-
-/*
-// peer joining is below and peer calling function is above
-void TorusPeer::createUpChannel(json msg) {
-
-    INDEX srcIndex = std::make_pair(msg["myIndex"][0], msg["myIndex"][1]);
-
-    std::cerr << publicId() << " creating channel with "  << srcIndex.first << " " << srcIndex.second << "\n";
-
-    if (!_joined) {
-
-        _downId = msg["from"];
-        _downIdIndex = srcIndex;
-
-        if (msg["myUp"] != -1) {
-            _upId = msg["myUp"];
-            _upIdIndex.first = msg["myUpIndex"][0];
-            _upIdIndex.second = msg["myUpIndex"][1];
-            _index = createIndex("up", srcIndex, _upIdIndex);
-            json newChannelMsg = buildChannelPayload("up");
-            std::cerr << "channel load to " << _upId << "\n";
-            unicastTo(newChannelMsg, _upId);
-        }
-        else {
-            _upId = msg["from"];
-            _downId = msg["from"];
-            _upIdIndex = srcIndex;
-            _downIdIndex = srcIndex;
-            _index = createIndex("up", srcIndex, _upIdIndex);
-        }
-
-        rowRC(msg);
-        
-        std::cerr << "NOW JOINED\n";
-        _joined = true;
-    }
-    else {
-        _downId = msg["from"];
-        _downIdIndex = srcIndex;
-        if (_upId == -1) {
-            _upId = _downId;
-            _upIdIndex = _downIdIndex;
-        }
-    }
-}
-
-// peer joining is above and peer calling function is below
-void TorusPeer::createDownChannel(json msg) {
-
-    INDEX srcIndex = std::make_pair(msg["myIndex"][0], msg["myIndex"][1]);
-
-    std::cerr << publicId() << " creating channel with "  << srcIndex.first << " " << srcIndex.second << "\n";
-
-    if (!_joined) {
-
-        _upId = msg["from"];
-        _upIdIndex = srcIndex;
-
-        if (msg["myDown"] != -1) {
-            _downId = msg["myDown"];
-            _downIdIndex.first = msg["myDownIndex"][0];
-            _downIdIndex.second = msg["myDownIndex"][1];
-            _index = createIndex("down", srcIndex, _downIdIndex);
-            json newChannelMsg = buildChannelPayload("down");
-            std::cerr << "channel load to " << _downId << "\n";
-            unicastTo(newChannelMsg,_downId);
-        }
-        else {
-            _downId = msg["from"];
-            _upId = msg["from"];
-            _downIdIndex = srcIndex;
-            _upIdIndex = srcIndex;
-            _index = createIndex("down", srcIndex, _downIdIndex);
-        }
-
-        rowRC(msg);
-
-        std::cerr << "NOW JOINED\n";
-        _joined = true;
-    }
-    else {
-        _upId = msg["from"];
-        _upIdIndex = srcIndex;
-        if (_downId == -1) {
-            _downId = _upId;
-            _downIdIndex = _upIdIndex;
-        }
-    }
-}
-
-void TorusPeer::createRightChannel(json msg) {
-
-    INDEX srcIndex = std::make_pair(msg["myIndex"][0], msg["myIndex"][1]);
-
-    std::cerr << publicId() << " creating channel with "  << srcIndex.first << " " << srcIndex.second << "\n";
-
-    if (!_joined) {
-
-        _leftId = msg["from"];
-        _leftIdIndex = srcIndex;
-
-        if (msg["myRight"] != -1) {
-            _rightId = msg["myRight"];
-            _rightIdIndex.first = msg["myRightIndex"][0];
-            _rightIdIndex.second = msg["myRightIndex"][1];
-            _index = createIndex("right", srcIndex, _rightIdIndex);
-            json newChannelMsg = buildChannelPayload("right");
-            std::cerr << "channel load to " << _rightId << "\n";
-            unicastTo(newChannelMsg, _rightId);
-        }
-        else {
-            _leftId = msg["from"];
-            _rightId = msg["from"];
-            _leftIdIndex = srcIndex;
-            _rightIdIndex = srcIndex;
-            _index = createIndex("right", srcIndex, _rightIdIndex);
-        }
-
-        columnRC(msg);
-
-        std::cerr << "NOW JOINED\n";
-        _joined = true;
-    }
-    else {
-        _leftId = msg["from"];
-        _leftIdIndex = srcIndex;
-        if (_rightId == -1) {
-            _rightId = _leftId;
-            _rightIdIndex = _leftIdIndex;
-        }
-    }
-}
-
-void TorusPeer::createLeftChannel(json msg) {
-
-    INDEX srcIndex = std::make_pair(msg["myIndex"][0], msg["myIndex"][1]);
-
-    std::cerr << publicId() << " creating channel with "  << srcIndex.first << " " << srcIndex.second << "\n";
-
-
-    if (!_joined) {
-
-        _rightId = msg["from"];
-        _rightIdIndex = srcIndex;
-
-        if (msg["myLeft"] != -1) {
-            _leftId = msg["myLeft"];
-            _leftIdIndex.first = msg["myLeftIndex"][0];
-            _leftIdIndex.second = msg["myLeftIndex"][1];
-            _index = createIndex("left", srcIndex, _leftIdIndex);
-            json newChannelMsg = buildChannelPayload("left");
-            std::cerr << "channel load to " << _leftId << "\n";
-            unicastTo(newChannelMsg, _leftId);
-        }
-        else {
-            _leftId = msg["from"];
-            _rightId = msg["from"];
-            _leftIdIndex = srcIndex;
-            _rightIdIndex = srcIndex;
-            _index = createIndex("left", srcIndex, _leftIdIndex);
-        }
-
-        columnRC(msg);
-
-        std::cerr << "NOW JOINED\n";
-        _joined = true;
-    }
-    else {
-        _rightId = msg["from"];
-        _rightIdIndex = srcIndex;
-        if (_leftId == -1) {
-            _leftId = _rightId;
-            _leftIdIndex = _rightIdIndex;
-        }
-    }
-}*/
 
 // searches and creates channels for peers in same column with holes
 void TorusPeer::columnRC(json msg) {
@@ -800,227 +294,60 @@ void TorusPeer::rowRC(json msg) {
     }
 }
 
-/*
-void TorusPeer::computationNotJoined(json msg) {
+// BFS search for destination peer. Uses global knowledge approach
+// possiblility to implement more efficient search using known indexes
+void TorusPeer::pathFind(json msg) {
 
-    if (msg["type"] == "route") {
-        std::cerr << publicId() << " received route with next: " << msg["nextPeer"] << "\n";
-        if (_dest.first == -1)  {
-            if ((msg["funds"] > _funds && _lastMessage["funds"] < _funds) ||
-                (msg["funds"] < _funds && _lastMessage["funds"] > _funds)) {
-                // sets dest to node that peer wants to join
-                _dest = std::make_pair(msg["myIndex"][0], msg["myIndex"][1]);
-                json newJoinMsg = buildJoinPayload(_dest);
-                std::cerr << publicId() << " is sending join message to " << msg["from"] << " with dest: " << _dest.first << " " << _dest.second << "\n";
-                unicastTo(newJoinMsg, msg["from"]);
-            }
-            else {
-                json message = buildJoinPayload({-1,-1});
-                std::cerr << publicId() << " is sending join message to " << msg["nextPeer"] << " with dest: " << -1 << " " << -1 << "\n";
-                unicastTo(message, msg["nextPeer"]);
-            }
-        }
-        else {
-            json message = buildJoinPayload(_dest);
-            std::cerr << publicId() << " is sending join message to " << msg["nextPeer"] << " with dest: " << _dest.first << " " << _dest.second << "\n";
-            unicastTo(message, msg["nextPeer"]);
+    // search start node is bootstrap node
+    /*
+    if (!_startedSearch) {
+        _startedSearch = true;
+        _visited.insert(std::make_pair(_bootStrap, std::make_pair(0.5,0.5)));
+        //_toVisit.push_back(std::make_pair(_bootStrap, std::make_pair(0.5,0.5)));
+    }*/
+
+    if (msg["myIndex"][0] == _dest.first && msg["myIndex"][1] == _dest.second) {
+        std::cerr << "EQUALITY TRUE FOR PATH FIND\n";
+        if (!_joinSent) {
+            json newMsg = buildJoinPayload(_dest);
+            unicastTo(newMsg,msg["from"]);
+            _joinSent = true;
         }
     }
-    else if (msg["type"] == "channel")
-        createChannels(msg);
+    else {
+        std::cerr << "adding neighbours\n";
+        std::vector<std::pair<interfaceId, INDEX>> neighbours;
+        neighbours.push_back(std::make_pair(msg["myRight"], msg["myRightIndex"]));
+        neighbours.push_back(std::make_pair(msg["myLeft"], msg["myLeftIndex"]));
+        neighbours.push_back(std::make_pair(msg["myUp"], msg["myUpIndex"]));
+        neighbours.push_back(std::make_pair(msg["myDown"], msg["myDownIndex"]));
 
-}*/
+        for (auto i : neighbours) {
+            std::cerr << "attempting to add: " << i.first << std::endl;
+            if (i.first != -1 && _visited.find(i) == _visited.end()) {
+                std::cerr << "added " << i.first << " to _toVisit\n";
+                _toVisit.push_back(i);
+            }
+        }
+
+        while (!_toVisit.empty()) {
+            std::cerr << "_toVisit was not empty\n";
+            std::pair<interfaceId, INDEX> nextPeer = _toVisit.front();
+            _toVisit.pop_front();
+            _visited.insert(nextPeer);
+            json newMsg = buildPathFindPayload(_dest);
+            unicastTo(newMsg, nextPeer.first);
+        }
+    }
+}
 
 /*
-void TorusPeer::computationJoined(json msg) {
-
-    if (msg["type"] == "join") {
-        if (msg["destination"][0] != -1) {
-
-            // row first
-            if (0 == randMod(2)) {
-                if (_index.first < msg["destination"][0] && _rightId != -1 && _rightIdIndex.first > _index.first) {
-                    json message = buildRoutePayload(_rightId);
-                    unicastTo(message, msg["from"]);
-                }
-                else if (_index.first > msg["destination"][0] && _leftId != -1 && _leftIdIndex.first < _index.first) {
-                    json message = buildRoutePayload(_leftId);
-                    unicastTo(message, msg["from"]);
-                }                    
-                else if (_index.second < msg["destination"][1] && _upId != -1 && _upIdIndex.second > _index.second) {
-                    json message = buildRoutePayload(_upId);
-                    unicastTo(message, msg["from"]);
-                }
-                else if (_index.second > msg["destination"][1] && _downId != -1 && _downIdIndex.second < _index.second) {
-                    json message = buildRoutePayload(_downId);
-                    unicastTo(message, msg["from"]);
-                }
-            } 
-            else {
-                if (_index.second < msg["destination"][1] && _upId != -1 && _upIdIndex.second > _index.second) {
-                    json message = buildRoutePayload(_upId);
-                    unicastTo(message, msg["from"]);
-                }
-                else if (_index.second > msg["destination"][1] && _downId != -1 && _downIdIndex.second < _index.second) {
-                    json message = buildRoutePayload(_downId);
-                    unicastTo(message, msg["from"]);
-                }
-                else if (_index.first > msg["destination"][0] && _leftId != -1 && _leftIdIndex.first < _index.first) {
-                    json message = buildRoutePayload(_leftId);
-                    unicastTo(message, msg["from"]);
-                }
-                else if (_index.first < msg["destination"][0] && _rightId != -1 && _rightIdIndex.first > _index.first) {
-                    json message = buildRoutePayload(_rightId);
-                    unicastTo(message, msg["from"]);
-                }
-            } 
-            if (_index.first == msg["destination"][0] && _index.second == msg["destination"][1]) {
-                if (msg["funds"] > _funds) {
-                    if ((_rightId == -1 && _upId == -1 )|| (_rightId != -1 && _upId != -1)) { 
-
-                        if (randMod(2) == 0) {
-                            std::cerr << "building channel payload for router " << msg["from"] << "\n";
-                            json message = buildChannelPayload("right");
-                            unicastTo(message, msg["from"]);
-                            _rightId = msg["from"];
-                            _rightIdIndex = createIndex("right", _index, _rightIdIndex);
-                            if (_leftId == -1) {
-                                _leftId = _rightId;
-                                _leftIdIndex = _rightIdIndex;
-                            }   
-                        }
-                        else {
-                            json message = buildChannelPayload("up");
-                            std::cerr << "building channel payload for router " << msg["from"] << "\n";
-                            unicastTo(message, msg["from"]);
-                            _upId = msg["from"];
-                            _upIdIndex = createIndex("up", _index, _upIdIndex);
-                            if (_downId == -1) {
-                                _downId = _upId;
-                                _downIdIndex = _upIdIndex;
-                            }
-                        }
-                    }
-                    else if (_rightId == -1) {
-                        std::cerr << "building channel payload for router " << msg["from"] << "\n";
-                        json message = buildChannelPayload("right");
-                        unicastTo(message,msg["from"]);
-                        _rightId = msg["from"];
-                        _rightIdIndex = createIndex("right", _index, _rightIdIndex);
-                        if (_leftId == -1) {
-                            _leftId = _rightId;
-                            _leftIdIndex = _rightIdIndex;
-                        }
-                    }
-                    else if (_upId == -1) {
-                        json message = buildChannelPayload("up");
-                        std::cerr << "building channel payload for router " << msg["from"] << "\n";    
-                        unicastTo(message,msg["from"]);
-                        _upId = msg["from"];
-                        _upIdIndex = createIndex("up", _index, _upIdIndex);
-                        if (_downId == -1) {
-                            _downId = _upId;
-                            _downIdIndex = _upIdIndex;
-                        }
-                    }   
-                }
-                else {
-                    if ((_leftId == -1 && _downId == -1 )|| (_leftId != -1 && _downId != -1)) { 
-
-                        if (randMod(2) == 0) {
-                            json message = buildChannelPayload("left");
-                            std::cerr << "building channel payload for router " << msg["from"] << "\n";
-                            unicastTo(message, msg["from"]);
-                            _leftId = msg["from"];
-                            _leftIdIndex = createIndex("left", _index, _leftIdIndex);
-                            if (_rightId == -1) {
-                                _rightId = _leftId;
-                                _rightIdIndex = _leftIdIndex;
-                            }
-                        }
-                        else {
-                            json message = buildChannelPayload("down");
-                            std::cerr << "building channel payload for router " << msg["from"] << "\n";
-                            unicastTo(message, msg["from"]);
-                            _downId = msg["from"];
-                            _downIdIndex = createIndex("down", _index, _downIdIndex);
-                            if (_upId == -1) {
-                                _upId = _downId;
-                                _upIdIndex = _downIdIndex;
-                            }
-                        }
-                    }
-                    else if (_leftId == -1) {
-                        json message = buildChannelPayload("left");
-                        std::cerr << "building channel payload for router " << msg["from"] << "\n";
-                        unicastTo(message,msg["from"]);
-                        _leftId = msg["from"];
-                        _leftIdIndex = createIndex("left", _index, _leftIdIndex);
-                        if (_rightId == -1) {
-                            _rightId = _leftId;
-                            _rightIdIndex = _leftIdIndex;
-                        }
-
-                    }
-                    else if (_downId == -1) {
-                        json message = buildChannelPayload("down");
-                        std::cerr << "building channel payload for router " << msg["from"]  << "\n";
-                        unicastTo(message,msg["from"]);
-                        _downId = msg["from"];
-                        _downIdIndex = createIndex("down", _index, _downIdIndex);
-                        if (_upId == -1) {
-                            _upId = _downId;
-                            _upIdIndex = _downIdIndex;
-                        }
-                    }   
-                }
-            }
-        }
-        else if (msg["destination"][0] == -1) {
-            if (_funds >= msg["funds"]) {
-                if (randMod(2) == 1) {
-                    json newRouteMsg = buildRoutePayload(_rightId);
-                    unicastTo(newRouteMsg,msg["from"]);
-                }
-                else {
-                    json newRouteMsg = buildRoutePayload(_upId);
-                    unicastTo(newRouteMsg,msg["from"]);
-                }
-            }
-            else {
-                if (randMod(2) == 1) {
-                    json newRouteMsg = buildRoutePayload(_leftId);
-                    unicastTo(newRouteMsg,msg["from"]);
-                }
-                else {
-                    json newRouteMsg = buildRoutePayload(_downId);
-                    unicastTo(newRouteMsg,msg["from"]);
-                }
-            }
-        }
-    } 
-    else if (msg["type"] == "channel") {
-        std::cerr << "joined peer " <<  publicId() << " received channel message from peer " << msg["from"] << " to create channel in direction " << msg["location"] << std::endl;
-        createChannels(msg);
-        json reply = buildResponsePayload();
-        unicastTo(reply, msg["from"]);
+void TorusPeer::pathFindResponse(json msg) {
+    if (msg["destination"][0] == _index.first && msg["destination"][1] == _index.second) {
+        //unicastTo(response, msg["from"]);
     }
-    else if (msg["type"] == "response") {
-
-        std::cerr << publicId() << " xxx received response message from peer " << msg["from"] << " with index: " << msg["myIndex"][0] << " " << msg["myIndex"][1] << std::endl;
-
-        if (msg["from"] == _rightId) {
-            _rightIdIndex = std::make_pair(msg["myIndex"][0], msg["myIndex"][1]);
-        }
-        if (msg["from"] == _upId) {
-            _upIdIndex = std::make_pair(msg["myIndex"][0], msg["myIndex"][1]);
-        }
-        if (msg["from"] == _leftId) {
-            _leftIdIndex = std::make_pair(msg["myIndex"][0], msg["myIndex"][1]);
-        }
-        if (msg["from"] == _downId) {
-            _downIdIndex = std::make_pair(msg["myIndex"][0], msg["myIndex"][1]);
-        }
+    else {
+        buildRoutePayload(msg["from"]);
     }
 }*/
 
@@ -1029,51 +356,17 @@ void TorusPeer::performComputation() {
 
     Packet packet;
 
-    /*
-    if (!_joined && _readyToJoin) {
-        // returns index of peer with hole that 
-        // has closest funds to caller
-        //std::cerr << "peer: " << publicId() << " is looking for hole with closest funds\n";
-        std::pair<double,double> newDest = findBestHole();
-        if (newDest != _dest)
-            std::cerr << "peer: " << publicId() << " found hole with index: " << newDest.first << " " << newDest.second << "\n";
-
-        // if hole status changed to no hole, scrap all messages unless its a create channel message
-        if (newDest.first == -1 && _dest.first != -1) {
-            while(!inStreamEmpty()) {
-                packet = popInStream();
-                if (packet.getMessage()["type"] == "channel")
-                    break;
-            }
-            if (packet.getMessage()["type"] == "channel") {
-                createChannels(packet.getMessage());
-            }
-            else {
-            _dest = {-1,-1};
-            json message = buildJoinPayload(_dest);
-            std::cerr << publicId() << " is sending bootstrap join message to " << _bootStrap << " with dest: " << _dest.first << " " << _dest.second << "\n";
-            unicastTo(message, _bootStrap);
-            }
-        }
-        // if hole status changed, scrap all messages unless its a create channel message
-        else if (_dest.first == -1 && newDest.first != -1) {
-            while (!inStreamEmpty()) {
-                packet = popInStream();
-                if (packet.getMessage()["type"] == "channel")
-                    break;
-            }
-            if (packet.getMessage()["type"] == "channel") {
-                createChannels(packet.getMessage());
-            }
-            else {
-            _dest = newDest;
-            json message = buildJoinPayload(_dest);
-            std::cerr << publicId() << " is sending bootstrap join message to " << _bootStrap << " with dest: " << _dest.first << " " << _dest.second << "\n";
-            unicastTo(message, _bootStrap);
-            }
-        }
+    if (!_state) {
+        std::cerr << "bad state pointer\n";
     }
-    */
+    /*
+    else {
+        if (_state->isJoined())
+            std::cerr << "Joined status\n";
+        else
+            std::cerr << "Not joined status\n";
+    }*/
+
 
     _state->preComputation();
     
@@ -1190,6 +483,34 @@ json TorusPeer::buildRoutePayload(interfaceId nextQuery) const {
     return payload;
 }
 
+json TorusPeer::buildPathFindPayload(INDEX destination) const {
+    json payload;
+    payload["type"] = "pathFind";
+    payload["from"] = publicId();
+    payload["roundSent"] = RoundManager::currentRound();
+    payload["destination"] = destination;
+    
+    return payload;
+}
+
+json TorusPeer::buildPathFindResponsePayload() const {
+    json payload;
+    payload["type"] = "pathFindResponse";
+    payload["from"] = publicId();
+    payload["roundSent"] = RoundManager::currentRound();
+    payload["myIndex"] = {_index.first, _index.second};
+    payload["myLeft"] = _leftId;
+    payload["myLeftIndex"] = {_leftIdIndex.first, _leftIdIndex.second};
+    payload["myRight"] = _rightId;
+    payload["myRightIndex"] = {_rightIdIndex.first, _rightIdIndex.second};
+    payload["myUp"] = _upId;
+    payload["myUpIndex"] = {_upIdIndex.first, _upIdIndex.second};
+    payload["myDown"] = _downId;
+    payload["myDownIndex"] = {_downIdIndex.first, _downIdIndex.second};
+    
+    return payload;
+}
+
 json TorusPeer::buildChannelPayload(std::string location) const {
     json payload;
     payload["type"] = "channel";
@@ -1207,14 +528,6 @@ json TorusPeer::buildChannelPayload(std::string location) const {
     payload["myIndex"] =  {_index.first, _index.second};
     return payload;
 }
-
-/*
-json TorusPeer::buildQueryPayload() const {
-    json payload;
-    payload["type"] = "query";
-    payload["from"] = publicId();
-    return payload;
-}*/
 
 json TorusPeer::buildResponsePayload() const {
     json payload;

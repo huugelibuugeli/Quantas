@@ -5,9 +5,11 @@
 #include "../Common/Peer.hpp"
 #include <utility>
 #include <vector>
+#include <deque>
 #include <list>
 #include <algorithm>
 #include <cmath>
+#include <memory>
 
 namespace quantas {
 
@@ -35,15 +37,14 @@ namespace quantas {
         std::pair<interfaceId, interfaceId> findSameRC(std::pair<double,double>, char);
         INDEX createIndex(std::string, INDEX, INDEX);
 
+        void pathFind(json msg);
+
 
         //void computationJoined(json);
         //void computationNotJoined(json);
 
-        void changeState(TorusPeerState* newState) {
-            delete _state;
-            _state = newState;
-        }
-
+        // changes to join state
+        void changeState();
 
         // channel creation functions
         /*
@@ -60,6 +61,8 @@ namespace quantas {
         json buildRoutePayload(interfaceId) const;
         json buildChannelPayload(std::string) const;
         json buildResponsePayload() const;
+        json buildPathFindPayload(INDEX) const;
+        json buildPathFindResponsePayload() const;
 
 
         // neighbours
@@ -91,17 +94,25 @@ namespace quantas {
         interfaceId _bootStrap = -1;
         Peer* nextToJoin = nullptr; // for bootstrap with global knowledge
 
+        std::list<std::pair<interfaceId, INDEX>> _toVisit;
+        std::set<std::pair<interfaceId, INDEX>> _visited;
+        void clearToVisit() {_toVisit.clear();}
+        void clearVisited() {_visited.clear();}
+
+        bool _startedSearch = false;
+
+        // if turned true, should turn back to false after timeout
+        // timeout not yet implemented. For BFS search algorithm
+        bool _joinSent = false; 
     private:
 
-        TorusPeerState* _state = nullptr;
+        std::unique_ptr<TorusPeerState> _state = nullptr;
 
         // global knowledge solution. to be altered
         // only used once destination is already found
         // to be replaced by message passing search algorithm
         std::vector<std::pair<std::pair<double,double>, interfaceId>> _allJoined;
         std::vector<std::pair<std::pair<double,double>, double>> _allHoles;
-        
-        int _startedSearch = -1;
 
         void checkInStrm();
     };
@@ -156,9 +167,7 @@ namespace quantas {
 
         // round computation function
         void computation(json msg) override;
-        void preComputation() override {
-            findDestination();
-        };
+        void preComputation() override;
 
         // when peer first starts to join
         void findDestination();
@@ -172,6 +181,10 @@ namespace quantas {
         bool isJoined() const override {
             return false;
         }
+
+    private:
+        bool _createdChannel = false;
+        bool _startedRoute = false;
     };
 
 }

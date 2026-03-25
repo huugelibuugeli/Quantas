@@ -21,7 +21,7 @@
         "initialPeerType": "TorusPeer"
       },
       "tests": 1,
-      "rounds": 50
+      "rounds": 400
     }
   ]
 }
