@@ -1,11 +1,12 @@
 {
   "algorithms": [
-    "ExamplePeer/TorusPeer.cpp"
+    "TorusPeer/TorusPeer.cpp",
+    "TorusPeer/TorusPeerState.cpp"
   ],
   "experiments": [
     {
       "logFile": "TorusJoin.txt",
-      "threadCount": 48,
+      "threadCount": 1,
       "parameters": {
         "maxFunds": 100,
         "bootstrap_id": 0
@@ -16,11 +17,11 @@
       },
       "topology": {
         "type": "complete",
-        "initialPeers": 10,
+        "initialPeers": 100,
         "initialPeerType": "TorusPeer"
       },
-      "tests": 1,
-      "rounds": 20
+      "tests": 100,
+      "rounds": 2000
     }
   ]
 }
