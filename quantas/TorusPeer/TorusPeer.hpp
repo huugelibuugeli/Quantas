@@ -18,15 +18,15 @@ namespace quantas {
     typedef std::pair<int,int> INDEX;
 
     struct PaymentChannel {
-        double _mine;
-        double _other;
-        interfaceId _otherId;
+        double _mine = -1;
+        double _other = -1;
+        interfaceId _otherId = -1;
     };
 
     struct Transaction {
-        double _amount;
-        interfaceId _source;
-        interfaceId _target;
+        double _amount = -1;
+        interfaceId _source = -1;
+        interfaceId _target = -1;
     };
 
 
@@ -70,6 +70,22 @@ namespace quantas {
         json buildResponsePayload() const;
         json buildPathFindPayload(INDEX) const;
         json buildPathFindResponsePayload() const;
+        json buildPaymentRoutePayload(double amount, bool sender) const;
+
+        // payment channel functions
+        PaymentChannel getChannel(int location) {return _channels[location];};
+        int addPaymentChannel(PaymentChannel);
+        void updateChannel(int location, double myFunds, double otherFunds);
+        void initChannels();
+        bool tryPayment(std::vector<TorusPeer*>,Transaction);
+        void updateFunds(interfaceId, double, bool);
+        std::pair<Transaction,bool> getTransaction() const {if (_pendingTransactions.empty()) return std::make_pair(_pendingTransactions.front(),false); else return std::make_pair(_pendingTransactions.front(),true);}
+        // returns true if has channel with given peers 
+        // and enough funds to make the payment. Else false
+        bool hasCapacity(interfaceId, double);
+        void transactionFinished();
+        // used to inform peer of how much funds other peer has in theiri channel at initialization
+        void fundInitHelper(interfaceId, double amount);
 
 
         // neighbours
@@ -87,6 +103,7 @@ namespace quantas {
 
         INDEX _index;        bool _indexHasValue = false;
         double _funds;
+        double _fundsAvailable;
 
         // last message received
         json _lastMessage;
@@ -121,9 +138,13 @@ namespace quantas {
         int _verticalSteps = 0;
     private:
 
-        std::vector<Channel> _channels;
+        // indicates whether in join or payment simulation
+        // eventually to be combined
+        bool _preBuilt = false;
 
-
+        std::vector<PaymentChannel> _channels;
+        std::list<Transaction> _pendingTransactions;
+        
         std::unique_ptr<TorusPeerState> _state = nullptr;
 
         // global knowledge solution. to be altered
@@ -142,7 +163,7 @@ namespace quantas {
         ~TorusPeerState() = default;
 
         virtual void computation(json);
-        virtual void preComputation() {};
+        virtual void preComputation() {std::cerr << "ERROR, CALLED DEFAULT PRECOMP\n";};
 
         void createChannels(json);
 
@@ -155,6 +176,13 @@ namespace quantas {
         // return joined/not joined status
         virtual bool isJoined() const = 0;
 
+        // distributes funds across channels
+        virtual double distributeFunds(double, double) {std::cerr << "CALLING distributeFunds() IN NON-JOINED STATE\n"; exit(1);};
+        virtual std::pair<std::vector<interfaceId>,bool> paymentReady() {std::vector<long> tmp; return std::make_pair(tmp,false);};
+        virtual void paymentReset() {}
+        virtual std::pair<double,double> getFunds(std::string) { return std::make_pair(-1,-1);};
+
+
     protected:
         TorusPeer* _peer;
     };
@@ -166,6 +194,7 @@ namespace quantas {
 
         // round computation function
         void computation(json msg) override;
+        void preComputation() override;
 
         // channel creation functions
         void createUpChannel(json) override;
@@ -177,16 +206,42 @@ namespace quantas {
             return true;
         }
 
-        void makePayment(double, interfaceId);
+        void startPayment();
+        // first value represents calling peer's channel funds, second value represents neighbour's channel funds
+        // string represents location of channel (i.e. up, down, right, left)
+        std::pair<double,double> getFunds(std::string) override;
+        double distributeFunds(double, double) override;
+        void paymentRoute(json msg);
+        void makePayment(std::vector<interfaceId>);
+        std::pair<std::vector<interfaceId>,bool> paymentReady() override {if (_hasRoute) return std::make_pair(_paymentRoute,true); else return std::make_pair(_paymentRoute,false);}
+        // currently resetting paymentRouteTree but maybe should keep in between routes, so peer has some routes memorized and doesn't need to search again
+        void paymentReset() override {_paymentSearchStarted = false; _hasRoute = false; _paymentRoute.clear(); _pathPtrs.clear(); _paymentToVisitBFS.clear(); _paymentVisitedBFS.clear();}
+
 
     private:
 
-        std::list<Transaction> _pendingTransactions;
-        bool paymentSearchStarted = false;
-        
-        std::vector<interfaceId> _paymentVisitedBFS;
-        std::vector<interfaceId> _paymentToVisitBFS;
-        std::vector<interfaceId> _paymentRouteTree;
+        // index of where channel struct is stored in _channels vector represents location of channel
+        int _upChannel = -1;
+        int _downChannel = -1;
+        int _rightChannel = -1;
+        int _leftChannel = -1;
+
+        bool _readyForPayment = false;
+
+        bool _paymentSearchStarted = false;
+        std::list<interfaceId> _paymentVisitedBFS;
+        std::list<interfaceId> _paymentToVisitBFS;
+        bool _hasRoute = false;
+
+        // final route used for payment
+        std::vector<interfaceId> _paymentRoute;
+
+        struct PaymentPath {
+            PaymentPath(PaymentPath* ptr, interfaceId id) : _parent(ptr), _peerId(id) {}
+            PaymentPath* _parent;
+            interfaceId _peerId;
+        };
+        std::vector<PaymentPath*> _pathPtrs;
 
     };
 

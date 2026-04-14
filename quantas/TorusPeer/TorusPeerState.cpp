@@ -351,6 +351,14 @@ void NotJoinedState::findDestination() {
 //
 // joined state
 //
+
+
+
+void JoinedState::preComputation() {
+    startPayment();
+}
+
+
 void JoinedState::createUpChannel(json msg) {
     _peer->_downId = msg["from"];
     _peer->_downIdIndex = std::make_pair(msg["myIndex"][0], msg["myIndex"][1]);
@@ -393,6 +401,8 @@ void JoinedState::createLeftChannel(json msg) {
 }
 
 void JoinedState::computation(json msg) {
+
+    //std::cerr << _peer->publicId() << " received " << msg["type"] << " from " << msg["from"] << std::endl;
 
     if (msg["type"] == "join") {
         if (_peer->_index.first == msg["destination"][0] && _peer->_index.second == msg["destination"][1]) {
@@ -611,6 +621,13 @@ void JoinedState::computation(json msg) {
         if (msg["from"] == _peer->_downId) {
             _peer->_downIdIndex = std::make_pair(msg["myIndex"][0], msg["myIndex"][1]);
         }
+    }
+    else if (msg["type"] == "paymentRouteRequest") {
+        json response = _peer->buildPaymentRoutePayload(0,false);
+        _peer->unicastTo(response,msg["from"]);
+    }
+    else if (msg["type"] == "paymentRouteResponse") {
+        paymentRoute(msg);
     }
 }
 }

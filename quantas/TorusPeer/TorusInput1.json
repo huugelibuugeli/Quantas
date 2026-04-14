@@ -6,31 +6,6 @@
   ],
   "experiments": [
     {
-      "logFile": "TorusJoin100.txt",
-      "threadCount": 1,
-      "parameters": {
-        "peerSize": 100,
-        "maxFunds": 100,
-        "bootstrap_id": 0,
-        "prebuiltTopology": 1,
-        "prebuiltIndexes": [
-
-        ]
-      },
-      "distribution": {
-        "type": "uniform",
-        "maxDelay": 1
-      },
-      "topology": {
-        "type": "complete",
-        "initialPeers": 100,
-        "initialPeerType": "TorusPeer"
-      },
-      "tests": 100,
-      "rounds": 2000
-    },
-
-    {
       "logFile": "TorusPayment100.txt",
       "threadCount": 1,
       "parameters": {
@@ -38,7 +13,7 @@
         "maxFunds": 100,
         "bootstrap_id": 0,
         "prebuiltTopology": 0,
-        "paymentNum": 50,
+        "paymentNum": 500,
         "prebuiltIndexes": [
             [
                 0,
@@ -451,8 +426,8 @@
         "initialPeers": 100,
         "initialPeerType": "TorusPeer"
       },
-      "tests": 100,
-      "rounds": 2000
+      "tests": 1,
+      "rounds": 100
     }
   ]
 }

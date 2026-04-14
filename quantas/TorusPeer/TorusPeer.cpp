@@ -109,27 +109,102 @@ void TorusPeer::initParameters(const std::vector<Peer*>& peers, json parameters)
 
     std::vector<std::pair<INDEX, interfaceId>> allJoined;
 
-    for (auto* p : typed) {
-        p->_funds = randMod(parameters["maxFunds"]);
-        p->_bootStrap = peers[0]->publicId();
-        p->_state = std::make_unique<NotJoinedState>(p);
-        allJoined.push_back(std::make_pair(p->_index, p->publicId()));
-        std::cerr << p->_funds << " ";
+    // simulates joining of network
+    if (parameters["prebuiltTopology"] == 1) {
+
+        for (auto* p : typed) {
+            p->_funds = randMod(parameters["maxFunds"]);
+            p->_fundsAvailable = p->_funds;
+            p->_bootStrap = peers[0]->publicId();
+            p->_state = std::make_unique<NotJoinedState>(p);
+            allJoined.push_back(std::make_pair(p->_index, p->publicId()));
+            std::cerr << p->_funds << " ";
+        }
+
+        typed[0]->_isBootStrap = true;
+        typed[0]->changeState();
+        typed[0]->_index = {0,0}; typed[0]->_indexHasValue = true;
+
+        // for global knowledge implementation
+        // temporary centralized approach
+        typed[1]->_readyToJoin = true;
+
+        for (auto* p : typed) {
+            p->_allJoined = allJoined;
+            p->_allHoles.push_back(std::make_pair(typed[0]->_index, typed[0]->_funds));
+        }
+
     }
+    // prebuilt topology
+    // primarily used for simulating payments on network 
+    else {
 
-    typed[0]->_isBootStrap = true;
-    typed[0]->changeState();
-    typed[0]->_index = {0,0}; typed[0]->_indexHasValue = true;
+        // Assigning indexes and creating channels
 
-    // for global knowledge implementation
-    // temporary centralized approach
-    typed[1]->_readyToJoin = true;
+        typed[0]->_preBuilt = true;
 
-    for (auto* p : typed) {
-        p->_allJoined = allJoined;
-        p->_allHoles.push_back(std::make_pair(typed[0]->_index, typed[0]->_funds));
+        int i = 0;
+        for (auto* p : typed) {
+            // + 1 to avoid randMod(0) in future computation
+            p->_funds = randMod(parameters["maxFunds"])+1;
+            p->_fundsAvailable = p->_funds;
+            p->_bootStrap = peers[0]->publicId();
+            p->_index.first = parameters["prebuiltIndexes"][i][0];
+            p->_index.second = parameters["prebuiltIndexes"][i][1];
+            p->_state = std::make_unique<JoinedState>(p);
+            allJoined.push_back(std::make_pair(p->_index, p->publicId()));
+
+            ++i;
+        }
+
+        for (auto* p : typed) {
+            p->_allJoined = allJoined;
+
+            std::pair<interfaceId, interfaceId> one = p->findSameRC(p->_index, 'c');
+            std::pair<interfaceId, interfaceId> two = p->findSameRC(p->_index, 'r');
+
+            p->_downId = one.first;
+            p->_upId = one.second;
+            p->_leftId = two.first;
+            p->_rightId = two.second;
+        }
+
+        for (auto* p : typed) {
+            p->initChannels();
+        }
+
+        // Update channel funds based on other peers 
+        // channel funds. Currently only had own balance
+        for (auto* p1 : typed) {
+            for (auto* p2 : typed) {
+                for (auto k : p2->_channels)
+                    p1->fundInitHelper(p2->publicId(), k._mine);
+            }
+        }
+
+        // Creating transactions
+        for (int i = 0; i < parameters["paymentNum"]; ++i) {
+            int tmp1 = randMod(typed.size());
+            int tmp2 = randMod(typed.size());
+
+            // make sure no peer is making payments to itself
+            if (tmp1 == tmp2 && tmp2 < typed.size()-1)
+                ++tmp2;
+            else if (tmp1 == tmp2)
+                --tmp2;
+
+            Transaction t;
+            if (typed[tmp1]->_funds > typed[tmp2]->_funds)
+                t._amount = 1 + (randMod(typed[tmp2]->_funds) / 4);
+            else   
+                t._amount = 1 + (randMod(typed[tmp1]->_funds) / 4);
+
+            t._source = typed[tmp1]->publicId();
+            t._target = typed[tmp2]->publicId();
+            typed[tmp1]->_pendingTransactions.push_back(t);
+        }
+
     }
-
 
 
 }
@@ -151,7 +226,7 @@ std::pair<interfaceId,interfaceId> TorusPeer::findSameRC(INDEX coord, char RC) {
     std::cerr << publicId() << " is looking for same " << RC << " peers with coord: " << coord.first << " " << coord.second << "\n";
 
     for (auto i : _allJoined) {
-        std::cerr << "result: " << i.first.first << " " << i.first.second << " id: " << i.second << "\n";
+        //std::cerr << "result: " << i.first.first << " " << i.first.second << " id: " << i.second << "\n";
         // searching for row peers
         if (RC == 'r' && coord.second == i.first.second && coord != i.first) {
             double dist = std::abs(coord.first - i.first.first);
@@ -200,7 +275,7 @@ std::pair<interfaceId,interfaceId> TorusPeer::findSameRC(INDEX coord, char RC) {
         downPeer = sameRCLess.front().second;
     }
 
-    //std::cerr << "FINDSAMERC RESULT" << downPeer << " " << upPeer << "\n";
+    std::cerr << "FINDSAMERC RESULT" << downPeer << " " << upPeer << "\n";
 
     return std::make_pair(downPeer,upPeer);
 }
@@ -208,7 +283,6 @@ std::pair<interfaceId,interfaceId> TorusPeer::findSameRC(INDEX coord, char RC) {
 
 INDEX TorusPeer::createIndex(std::string location, INDEX srcIndex) {
 
-    
 
     // creating up channel index
     if (location == "up") {
@@ -365,6 +439,8 @@ void TorusPeer::pathFindResponse(json msg) {
 
 void TorusPeer::performComputation() {
 
+    //std::cerr << "Starting round computation\n";
+
     Packet packet;
 
     if (!_state) {
@@ -382,6 +458,119 @@ void TorusPeer::performComputation() {
     }
 }
 
+void TorusPeer::initChannels() {_fundsAvailable = _state->distributeFunds(_funds, _fundsAvailable);}
+
+void TorusPeer::transactionFinished() {_state->paymentReset();}
+
+void TorusPeer::fundInitHelper(interfaceId other, double amount) {
+    for (auto i : _channels) {
+        if (i._otherId == other) {
+            i._other = amount;
+        }
+    }
+}
+
+void TorusPeer::updateFunds(interfaceId other, double amount, bool adding) {
+    for (auto i : _channels) {
+        if (i._otherId == other && !adding) {
+
+            i._mine -= amount;
+            i._other += amount;
+
+            std::cerr << publicId() << " funds after " << i._mine << std::endl;
+
+            if (i._mine < 0 || i._other < 0) {
+                std::cerr << "ERROR: SOMEBODY WENT INTO NEGATIVE FUNDS IN UPDATEFUNDS\n";
+            }
+
+        }
+        else if (i._other == other && adding) {
+
+            i._mine += amount;
+            i._other -= amount;
+
+            if (i._mine < 0 || i._other < 0) {
+                std::cerr << "ERROR: SOMEBODY WENT INTO NEGATIVE FUNDS IN UPDATEFUNDS\n";
+            }
+
+        }
+    }
+}
+
+bool TorusPeer::hasCapacity(interfaceId other, double amount) {
+    std::cerr << publicId() << " calling has capacity with other" << other << std::endl;
+    for (auto i : _channels) {
+        if (i._otherId == other && i._mine > amount) {
+            std::cerr << publicId() << " funds before transaction: " << i._mine << std::endl;
+            return true;
+        }
+        else if (i._otherId == other)  {
+            std::cerr << publicId() << " only had " << i._mine << ". needed " << amount << std::endl;
+        }
+    }
+    return false;
+}
+
+
+// currently global knowledge implementation using vector of pointers
+bool TorusPeer::tryPayment(std::vector<TorusPeer*> peers, Transaction t) {
+
+
+    std::pair<std::vector<interfaceId>,bool> hasRoute = _state->paymentReady();
+    if (hasRoute.second) {
+
+        //std::cerr << "CALLING TRY PAYMENT WITH ROUTE\n";
+
+
+        std::vector<TorusPeer*> ptrPath;
+
+        for (int i = 0; i < hasRoute.first.size(); ++i) {
+            for (auto j : peers) {
+                if (j->publicId() == hasRoute.first[i])
+                    ptrPath.push_back(j);
+            }
+        }        
+
+        for (auto p : hasRoute.first) {
+            std::cerr << p << " - ";
+        }
+        std::cerr << std::endl;
+
+        for (int i = ptrPath.size()-1; i > 0; --i) {
+            if (ptrPath[i]->hasCapacity(hasRoute.first[i-1], t._amount))
+                continue;
+            else
+                return false;
+        }
+
+        for (auto p : hasRoute.first) {
+            std::cerr << p << " - ";
+        }
+        for (auto *p : ptrPath) {
+            std::cerr << p->publicId() << " ";
+        }
+        std::cerr << std::endl;
+        std::cerr << "target " << t._target << std::endl;
+        std::cerr <<  "source " << t._source << std::endl;
+        std::cerr << "PAYMENT SUCCESS\n";
+
+        for (int i = ptrPath.size()-1; i > 0; --i) {
+            ptrPath[i]->updateFunds(hasRoute.first[i-1], t._amount, false);
+            ptrPath[i-1]->updateFunds(hasRoute.first[i], t._amount, true);
+        }
+
+        std::cerr << "PAYMENT SUCCESS " << std::endl;
+
+        LogWriter::pushValue("PaymentSuccessRoute", hasRoute.first);
+
+        return true;
+    }
+    else {
+        return false;
+    }
+
+}
+
 
 void TorusPeer::endOfRound(std::vector<Peer*>& peers) {
 
@@ -391,10 +580,6 @@ void TorusPeer::endOfRound(std::vector<Peer*>& peers) {
 
     if (allHoles.empty()) {
         std::cerr << "no holes found\n\n\n";
-    }
-
-    for (auto i : allHoles) {
-        //std::cerr << "hole index: " << i.first.first << " " << i.first.second << " funds: " << i.second << "\n";
     }
 
     std::vector<TorusPeer*> typed;
@@ -456,8 +641,25 @@ void TorusPeer::endOfRound(std::vector<Peer*>& peers) {
         i->_allJoined = allJoined;
     }
 
+    static int confirmedPayments = 0;
 
-    std::cerr << "END OF ROUND\n\n\n";
+    // payment section of end round
+    for (auto i : typed) {
+
+        if (!i->_pendingTransactions.empty()) {
+
+            if(i->tryPayment(typed, i->_pendingTransactions.front())) {
+                std::cerr << "PAYMENT SUCCESS\n" << std::endl;
+                i->_pendingTransactions.pop_front();
+                ++confirmedPayments;
+            }
+
+        }
+    }
+
+    LogWriter::pushValue("throughput",confirmedPayments);
+
+    //std::cerr << "END OF ROUND\n\n\n";
 
     /*
     for (auto i : typed) {
@@ -466,6 +668,11 @@ void TorusPeer::endOfRound(std::vector<Peer*>& peers) {
         }
     }*/
 
+}
+
+int TorusPeer::addPaymentChannel(PaymentChannel newChannel) {
+    _channels.push_back(newChannel);
+    return _channels.size() - 1;
 }
 
 json TorusPeer::buildJoinPayload(INDEX destination) const {
@@ -551,15 +758,38 @@ json TorusPeer::buildResponsePayload() const {
     return payload;
 }
 
-/*
-json TorusPeer::buildPaymentRoutePayload(interfaceId nextHop, double amount) const {
+
+json TorusPeer::buildPaymentRoutePayload(double amount, bool sender) const {
     json payload;
-    payload["type"] = "paymentRoute";
-    payload["from"] = publicId();
-    payload["amount"] = amount;
-    payload["nextHop"] = nextHop;
+
+    if (sender) {
+        payload["type"] = "paymentRouteRequest";
+        payload["from"] = publicId();
+        payload["amount"] = amount;
+    }
+    else {
+        payload["type"] = "paymentRouteResponse";
+        payload["from"] = publicId();
+        payload["myUp"] = _upId;
+        payload["myDown"] = _downId;
+        payload["myRight"] = _rightId;
+        payload["myLeft"] = _leftId;
+        payload["myUpIndex"] = {_upIdIndex.first, _upIdIndex.second};
+        payload["myDownIndex"] = {_downIdIndex.first, _downIdIndex.second};
+        payload["myLeftIndex"] = {_leftIdIndex.first, _leftIdIndex.second};
+        payload["myRightIndex"] = {_rightIdIndex.first, _rightIdIndex.second};
+        payload["myIndex"] =  {_index.first, _index.second};
+        std::pair<double,double> upCapacity = _state->getFunds("up");
+        std::pair<double,double> downCapacity = _state->getFunds("down");
+        std::pair<double,double> rightCapacity = _state->getFunds("right");
+        std::pair<double,double> leftCapacity = _state->getFunds("left");
+        payload["upCapacity"] = {upCapacity.first,upCapacity.second};
+        payload["downCapacity"] = {downCapacity.first,downCapacity.second};
+        payload["rightCapacity"] = {rightCapacity.first,rightCapacity.second};
+        payload["leftCapacity"] = {leftCapacity.first,leftCapacity.second};
+    }
     return payload;
-}*/
+}
 
 /*
 json TorusPeer::buildPaymentPayload(interfaceId destination, double amount) const {
