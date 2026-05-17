@@ -10,6 +10,9 @@
 #include <algorithm>
 #include <cmath>
 #include <memory>
+#include <iterator>
+#include <fstream>
+#include <map>
 
 namespace quantas {
 
@@ -18,6 +21,14 @@ namespace quantas {
     typedef std::pair<int,int> INDEX;
 
     struct PaymentChannel {
+
+        bool operator==(interfaceId id) {
+            if (_otherId == id)
+                return true;
+            else 
+                return false;
+        }
+
         double _mine = -1;
         double _other = -1;
         interfaceId _otherId = -1;
@@ -50,16 +61,12 @@ namespace quantas {
         std::pair<interfaceId, interfaceId> findSameRC(INDEX, char);
         //INDEX createIndex(std::string, INDEX, INDEX);
         INDEX createIndex(std::string, INDEX);
-
         void pathFind(json msg);
-
-
-        //void computationJoined(json);
-        //void computationNotJoined(json);
 
         // changes to join state
         void changeState();
 
+        // for finding peers in same row or column
         void rowRC(json);
         void columnRC(json);
 
@@ -70,7 +77,10 @@ namespace quantas {
         json buildResponsePayload() const;
         json buildPathFindPayload(INDEX) const;
         json buildPathFindResponsePayload() const;
-        json buildPaymentRoutePayload(double amount, bool sender) const;
+        json buildPaymentRoutePayload(double, bool) const;
+        json buildRebalanceRoutePayload(bool) const;
+        json buildRebalanceRequestPayload(double, interfaceId, int) const;
+        json buildRebalanceResultPayload(bool) const;
 
         // payment channel functions
         PaymentChannel getChannel(int location) {return _channels[location];};
@@ -85,7 +95,7 @@ namespace quantas {
         bool hasCapacity(interfaceId, double);
         void transactionFinished();
         // used to inform peer of how much funds other peer has in theiri channel at initialization
-        void fundInitHelper(interfaceId, double amount);
+        void fundInitHelper(std::vector<TorusPeer*>);
 
 
         // neighbours
@@ -117,6 +127,7 @@ namespace quantas {
         interfaceId _bootStrap = -1;
         Peer* nextToJoin = nullptr; // for bootstrap with global knowledge
 
+        // used for peer join search
         std::list<std::pair<interfaceId, INDEX>> _toVisit;
         std::set<std::pair<interfaceId, INDEX>> _visited;
         void clearToVisit() {_toVisit.clear();}
@@ -162,16 +173,16 @@ namespace quantas {
         TorusPeerState(TorusPeer* peer) : _peer(peer) {}
         ~TorusPeerState() = default;
 
-        virtual void computation(json);
-        virtual void preComputation() {std::cerr << "ERROR, CALLED DEFAULT PRECOMP\n";};
+        virtual void computation(json) = 0;
+        virtual void preComputation() = 0;
 
         void createChannels(json);
 
         // channel creation functions
-        virtual void createUpChannel(json);
-        virtual void createDownChannel(json);
-        virtual void createRightChannel(json);
-        virtual void createLeftChannel(json);
+        virtual void createUpChannel(json) = 0;
+        virtual void createDownChannel(json) = 0;
+        virtual void createRightChannel(json) = 0;
+        virtual void createLeftChannel(json) = 0;
 
         // return joined/not joined status
         virtual bool isJoined() const = 0;
@@ -207,18 +218,40 @@ namespace quantas {
         }
 
         void startPayment();
+        void startRebalance();
+
+        void paymentRoute(json msg);
+        void rebalanceRoute(json msg);
+
         // first value represents calling peer's channel funds, second value represents neighbour's channel funds
         // string represents location of channel (i.e. up, down, right, left)
         std::pair<double,double> getFunds(std::string) override;
-        double distributeFunds(double, double) override;
-        void paymentRoute(json msg);
-        void makePayment(std::vector<interfaceId>);
-        std::pair<std::vector<interfaceId>,bool> paymentReady() override {if (_hasRoute) return std::make_pair(_paymentRoute,true); else return std::make_pair(_paymentRoute,false);}
+        double distributeFunds(double, double);
+
+
+        void makePayment();
+        std::pair<std::vector<interfaceId>,bool> paymentReady() override;
         // currently resetting paymentRouteTree but maybe should keep in between routes, so peer has some routes memorized and doesn't need to search again
-        void paymentReset() override {_paymentSearchStarted = false; _hasRoute = false; _paymentRoute.clear(); _pathPtrs.clear(); _paymentToVisitBFS.clear(); _paymentVisitedBFS.clear();}
+        void paymentReset() override;
+        void tryRebalance();
 
 
     private:
+
+        struct PaymentPath {
+            PaymentPath(PaymentPath* ptr, interfaceId id, bool rebalance) : _parent(ptr), _peerId(id), _rebalanceNeeded(rebalance) {}
+            PaymentPath* _parent;
+            interfaceId _peerId;
+            // bool is whether rebalance required
+            bool _rebalanceNeeded;
+        };
+        struct RebalanceTx {
+            RebalanceTx(interfaceId r, interfaceId w, double a) : _requester(r), _rebalanceWith(w), _amount(a) {}
+            interfaceId _requester;
+
+            interfaceId _rebalanceWith; // which neighbour peer. (up or right)
+            double _amount;
+        };
 
         // index of where channel struct is stored in _channels vector represents location of channel
         int _upChannel = -1;
@@ -228,21 +261,52 @@ namespace quantas {
 
         bool _readyForPayment = false;
 
+        // for payment BFS search
         bool _paymentSearchStarted = false;
         std::list<interfaceId> _paymentVisitedBFS;
         std::list<interfaceId> _paymentToVisitBFS;
-        bool _hasRoute = false;
-
-        // final route used for payment
-        std::vector<interfaceId> _paymentRoute;
-
-        struct PaymentPath {
-            PaymentPath(PaymentPath* ptr, interfaceId id) : _parent(ptr), _peerId(id) {}
-            PaymentPath* _parent;
-            interfaceId _peerId;
-        };
+        // if -1 no route
+        // else, has index of which route successfUl in _paymentRoutes
+        // int _hasRoute = -1;
+        bool _hasRoute = false; // current single path approach
         std::vector<PaymentPath*> _pathPtrs;
 
+        // for rebalance BFS search
+        bool _rebalanceSearchStarted = false;
+        std::list<interfaceId> _rebalanceVisitedBFS;
+        std::list<interfaceId> _rebalanceToVisitBFS;
+        bool _rebalanceHasRoute = false;
+        std::vector<PaymentPath*> _rebalancePathPtrs;
+        
+
+        // queue of rebalance requests. Dealt with one at a time
+        // stores amount and the up or right neighbour of the peer 
+        // completing the rebalancing.
+        std::deque<RebalanceTx> _rebalanceQueue;
+
+        // current route that is being attempted
+        // if all have funds, pay, else try rebalance
+        std::vector<interfaceId> _tryingRoute;
+
+        // found route, but some channels still require rebalancing
+        bool _rebalancingRoute = false;
+        int _rebalancingSession = 0; // make sure rebalanceSuccess message is for correct session
+
+        // number of rebalances required for each route
+        // one route at a time approach
+        int _rebalancesNeeded = 0;
+
+        // final route used for rebalancing
+        std::vector<interfaceId> _rebalanceRoute;
+
+        int _rebalanceRouteReqsSent = 0;
+
+        // if there are both payment and rebalance
+        // transactions in queue, every other is a 
+        // payment and every other is a rebalance
+        bool _lastWasRebalance = false;
+
+        
     };
 
     class NotJoinedState : public TorusPeerState {

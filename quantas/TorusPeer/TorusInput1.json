@@ -6,7 +6,7 @@
   ],
   "experiments": [
     {
-      "logFile": "TorusPayment100.txt",
+      "logFile": "TorusPaymentRebalance100.txt",
       "threadCount": 1,
       "parameters": {
         "peerSize": 100,

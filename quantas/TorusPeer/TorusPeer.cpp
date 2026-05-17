@@ -9,7 +9,7 @@ static bool registerTorusPeer = []() {
 }();
 
 TorusPeer::TorusPeer(NetworkInterface* networkInterface)
-    : Peer(networkInterface) {std::cerr << "TorusPeer constructor called!" << std::endl;}
+    : Peer(networkInterface) {}
 
 // destructor must be defined out-of-line to ensure the vtable is emitted
 TorusPeer::~TorusPeer() = default;
@@ -48,7 +48,6 @@ bool TorusPeer::hasHoleLocation(std::string location) {
 
 void TorusPeer::changeState() {
     
-    //std::cerr << "CHANGE STATE WAS CALLED\n";
     _state = std::make_unique<JoinedState>(this);
 
 }
@@ -71,7 +70,6 @@ std::vector<std::pair<INDEX,double>> TorusPeer::findHoles(std::vector<Peer*> pee
             allHoles.push_back(std::make_pair(p->_index, p->_funds));
     }
 
-    //return closest->_index;
 
     return allHoles;
 
@@ -79,9 +77,7 @@ std::vector<std::pair<INDEX,double>> TorusPeer::findHoles(std::vector<Peer*> pee
 
 std::pair<INDEX,bool> TorusPeer::findBestHole() {
 
-    
     if (_allHoles.empty()) {
-        std::cerr << "peer: " << publicId() << " found no holes\n";
         return std::make_pair(std::make_pair(0, 0), false);
     }
     else {
@@ -95,15 +91,11 @@ std::pair<INDEX,bool> TorusPeer::findBestHole() {
             }
         }
 
-        //std::cerr << "peer: " << publicId() << " found hole with index: " << _allHoles[closest].first.first << " " << _allHoles[closest].first.second << " and funds: " << _allHoles[closest].second << "\n";
-
         return std::make_pair(_allHoles[closest].first, true);
     }
 }
 
 void TorusPeer::initParameters(const std::vector<Peer*>& peers, json parameters) {
-
-    std::cerr << "Initializing parameters for TorusPeer!" << std::endl;
 
 	const std::vector<TorusPeer*> typed = reinterpret_cast<std::vector<TorusPeer*> const&>(peers);
 
@@ -175,12 +167,15 @@ void TorusPeer::initParameters(const std::vector<Peer*>& peers, json parameters)
 
         // Update channel funds based on other peers 
         // channel funds. Currently only had own balance
-        for (auto* p1 : typed) {
-            for (auto* p2 : typed) {
-                for (auto k : p2->_channels)
-                    p1->fundInitHelper(p2->publicId(), k._mine);
-            }
+        for (auto* p : typed) {
+            p->fundInitHelper(typed);
         }
+
+        /*
+        for (auto* p : typed) {
+            for (auto k : p->_channels)
+                std::cerr << k._mine << " " << k._other << "\n";
+        }*/
 
         // Creating transactions
         for (int i = 0; i < parameters["paymentNum"]; ++i) {
@@ -203,9 +198,21 @@ void TorusPeer::initParameters(const std::vector<Peer*>& peers, json parameters)
             t._target = typed[tmp2]->publicId();
             typed[tmp1]->_pendingTransactions.push_back(t);
         }
-
     }
+}
 
+void TorusPeer::fundInitHelper(std::vector<TorusPeer*> peers) {
+
+    for (auto p : peers) {
+        for (auto& ch : _channels) { 
+            if (ch._otherId == p->publicId()) {
+                auto it = std::find(p->_channels.begin(), p->_channels.end(), publicId());
+                if (it != p->_channels.end()) {
+                    ch._other = it->_mine;
+                }
+            }
+        }
+    }
 
 }
 
@@ -216,17 +223,11 @@ std::pair<interfaceId,interfaceId> TorusPeer::findSameRC(INDEX coord, char RC) {
     std::list<std::pair<int, interfaceId>> sameRCGreater;
     std::list<std::pair<int, interfaceId>> sameRCLess;
     
-    /*
-    interfaceId closestLessPeer = -1;
-    double closestLessDist = -1;
-    interfaceId closestGreaterPeer = -1;
-    double closestGreaterDist = -1;
-    */
 
-    std::cerr << publicId() << " is looking for same " << RC << " peers with coord: " << coord.first << " " << coord.second << "\n";
+    //std::cerr << publicId() << " is looking for same " << RC << " peers with coord: " << coord.first << " " << coord.second << "\n";
 
     for (auto i : _allJoined) {
-        //std::cerr << "result: " << i.first.first << " " << i.first.second << " id: " << i.second << "\n";
+
         // searching for row peers
         if (RC == 'r' && coord.second == i.first.second && coord != i.first) {
             double dist = std::abs(coord.first - i.first.first);
@@ -275,8 +276,6 @@ std::pair<interfaceId,interfaceId> TorusPeer::findSameRC(INDEX coord, char RC) {
         downPeer = sameRCLess.front().second;
     }
 
-    std::cerr << "FINDSAMERC RESULT" << downPeer << " " << upPeer << "\n";
-
     return std::make_pair(downPeer,upPeer);
 }
 
@@ -303,7 +302,7 @@ INDEX TorusPeer::createIndex(std::string location, INDEX srcIndex) {
         return std::make_pair(srcIndex.first-1,srcIndex.second);
     }
     else {
-        std::cerr << "invalid location argument for createIndex\n";
+
         // maybe fix later to non valid index or pair return value with bool
         return {0,0};
     }
@@ -384,15 +383,9 @@ void TorusPeer::rowRC(json msg) {
 void TorusPeer::pathFind(json msg) {
 
     // search start node is bootstrap node
-    /*
-    if (!_startedSearch) {
-        _startedSearch = true;
-        _visited.insert(std::make_pair(_bootStrap, std::make_pair(0.5,0.5)));
-        //_toVisit.push_back(std::make_pair(_bootStrap, std::make_pair(0.5,0.5)));
-    }*/
 
     if (msg["myIndex"][0] == _dest.first && msg["myIndex"][1] == _dest.second) {
-        std::cerr << "EQUALITY TRUE FOR PATH FIND\n";
+        //std::cerr << "EQUALITY TRUE FOR PATH FIND\n";
         if (!_joinSent) {
             json newMsg = buildJoinPayload(_dest);
             unicastTo(newMsg,msg["from"]);
@@ -426,25 +419,12 @@ void TorusPeer::pathFind(json msg) {
     }
 }
 
-/*
-void TorusPeer::pathFindResponse(json msg) {
-    if (msg["destination"][0] == _index.first && msg["destination"][1] == _index.second) {
-        //unicastTo(response, msg["from"]);
-    }
-    else {
-        buildRoutePayload(msg["from"]);
-    }
-}*/
-
-
 void TorusPeer::performComputation() {
-
-    //std::cerr << "Starting round computation\n";
 
     Packet packet;
 
     if (!_state) {
-        std::cerr << "bad state pointer\n";
+        std::cerr << "bad state pointer\n"; exit(1);
     }
 
     _state->preComputation();
@@ -452,23 +432,15 @@ void TorusPeer::performComputation() {
     while (!inStreamEmpty()) {
         packet = popInStream();
         json msg = packet.getMessage();
-        //std::cerr << publicId() << " received message from peer " << msg["from"] << " with type: " << msg["type"] << "\n";
 
         _state->computation(msg);
     }
+
 }
 
 void TorusPeer::initChannels() {_fundsAvailable = _state->distributeFunds(_funds, _fundsAvailable);}
 
 void TorusPeer::transactionFinished() {_state->paymentReset();}
-
-void TorusPeer::fundInitHelper(interfaceId other, double amount) {
-    for (auto i : _channels) {
-        if (i._otherId == other) {
-            i._other = amount;
-        }
-    }
-}
 
 void TorusPeer::updateFunds(interfaceId other, double amount, bool adding) {
     for (auto i : _channels) {
@@ -477,7 +449,7 @@ void TorusPeer::updateFunds(interfaceId other, double amount, bool adding) {
             i._mine -= amount;
             i._other += amount;
 
-            std::cerr << publicId() << " funds after " << i._mine << std::endl;
+            //std::cerr << publicId() << " funds after " << i._mine << std::endl;
 
             if (i._mine < 0 || i._other < 0) {
                 std::cerr << "ERROR: SOMEBODY WENT INTO NEGATIVE FUNDS IN UPDATEFUNDS\n";
@@ -498,14 +470,14 @@ void TorusPeer::updateFunds(interfaceId other, double amount, bool adding) {
 }
 
 bool TorusPeer::hasCapacity(interfaceId other, double amount) {
-    std::cerr << publicId() << " calling has capacity with other" << other << std::endl;
+
     for (auto i : _channels) {
         if (i._otherId == other && i._mine > amount) {
-            std::cerr << publicId() << " funds before transaction: " << i._mine << std::endl;
             return true;
         }
         else if (i._otherId == other)  {
-            std::cerr << publicId() << " only had " << i._mine << ". needed " << amount << std::endl;
+            break;
+            //std::cerr << publicId() << " only had " << i._mine << ". needed " << amount << std::endl;
         }
     }
     return false;
@@ -515,12 +487,8 @@ bool TorusPeer::hasCapacity(interfaceId other, double amount) {
 // currently global knowledge implementation using vector of pointers
 bool TorusPeer::tryPayment(std::vector<TorusPeer*> peers, Transaction t) {
 
-
     std::pair<std::vector<interfaceId>,bool> hasRoute = _state->paymentReady();
     if (hasRoute.second) {
-
-        //std::cerr << "CALLING TRY PAYMENT WITH ROUTE\n";
-
 
         std::vector<TorusPeer*> ptrPath;
 
@@ -531,10 +499,12 @@ bool TorusPeer::tryPayment(std::vector<TorusPeer*> peers, Transaction t) {
             }
         }        
 
+        /*
         for (auto p : hasRoute.first) {
             std::cerr << p << " - ";
         }
         std::cerr << std::endl;
+        */
 
         for (int i = ptrPath.size()-1; i > 0; --i) {
             if (ptrPath[i]->hasCapacity(hasRoute.first[i-1], t._amount))
@@ -543,23 +513,25 @@ bool TorusPeer::tryPayment(std::vector<TorusPeer*> peers, Transaction t) {
                 return false;
         }
 
+        /*
         for (auto p : hasRoute.first) {
             std::cerr << p << " - ";
         }
         for (auto *p : ptrPath) {
             std::cerr << p->publicId() << " ";
-        }
-        std::cerr << std::endl;
-        std::cerr << "target " << t._target << std::endl;
-        std::cerr <<  "source " << t._source << std::endl;
-        std::cerr << "PAYMENT SUCCESS\n";
+        }*/
+
+        //std::cerr << std::endl;
+        //std::cerr << "target " << t._target << std::endl;
+        //std::cerr <<  "source " << t._source << std::endl;
+        //std::cerr << "PAYMENT SUCCESS\n";
 
         for (int i = ptrPath.size()-1; i > 0; --i) {
             ptrPath[i]->updateFunds(hasRoute.first[i-1], t._amount, false);
             ptrPath[i-1]->updateFunds(hasRoute.first[i], t._amount, true);
         }
 
-        std::cerr << "PAYMENT SUCCESS " << std::endl;
+        //std::cerr << "PAYMENT SUCCESS " << std::endl;
 
         LogWriter::pushValue("PaymentSuccessRoute", hasRoute.first);
 
@@ -574,13 +546,10 @@ bool TorusPeer::tryPayment(std::vector<TorusPeer*> peers, Transaction t) {
 
 void TorusPeer::endOfRound(std::vector<Peer*>& peers) {
 
+
     if (peers.empty()) return;
 
     std::vector<std::pair<INDEX,double>> allHoles = findHoles(peers);
-
-    if (allHoles.empty()) {
-        std::cerr << "no holes found\n\n\n";
-    }
 
     std::vector<TorusPeer*> typed;
     typed.reserve(peers.size());
@@ -588,14 +557,12 @@ void TorusPeer::endOfRound(std::vector<Peer*>& peers) {
         typed.push_back(static_cast<TorusPeer*>(basePtr));
     }
 
-
     TorusPeer* joinedPeer = nullptr;
-    // checking if next peer can join
+    // checking if next peer can join, since 1 peer at a time approach
     // for temporary centralized approach
     for (auto i : typed) {
         i->_allHoles = allHoles;
         if (i->_state->isJoined() && i->_readyToJoin) {
-            std::cerr << "peer: " << i->publicId() << "joined with index: " << i->_index.first << " " << i->_index.second << "\n";
 
             i->_readyToJoin = false;
             joinedPeer = i;
@@ -609,18 +576,11 @@ void TorusPeer::endOfRound(std::vector<Peer*>& peers) {
         }
     }
 
-    /*
-    for (auto i : typed) {
-        if (i->_state->isJoined())
-            std::cerr << "peer " << i->publicId() << " index: " << i->_index.first << " " << i->_index.second << " funds: " << i->_funds << "\n";
-    }*/
-
-
-
     if (joinedPeer != nullptr) {
         int roundsTaken = static_cast<int>(RoundManager::currentRound()) - joinedPeer->_searchStartRound; 
         LogWriter::pushValue("latency", roundsTaken);
         LogWriter::pushValue("index", joinedPeer->_index);
+        LogWriter::pushValue("funds",joinedPeer->_funds);
         int peersJoined = 0;
         for (auto i : typed) {
             if (i->_state->isJoined()) {
@@ -641,15 +601,14 @@ void TorusPeer::endOfRound(std::vector<Peer*>& peers) {
         i->_allJoined = allJoined;
     }
 
+    // payment section of end round
+
     static int confirmedPayments = 0;
 
-    // payment section of end round
     for (auto i : typed) {
-
-        if (!i->_pendingTransactions.empty()) {
+        if (!i->_pendingTransactions.empty() && i->_state->isJoined()) {
 
             if(i->tryPayment(typed, i->_pendingTransactions.front())) {
-                std::cerr << "PAYMENT SUCCESS\n" << std::endl;
                 i->_pendingTransactions.pop_front();
                 ++confirmedPayments;
             }
@@ -659,14 +618,6 @@ void TorusPeer::endOfRound(std::vector<Peer*>& peers) {
 
     LogWriter::pushValue("throughput",confirmedPayments);
 
-    //std::cerr << "END OF ROUND\n\n\n";
-
-    /*
-    for (auto i : typed) {
-        if (i->_state->isJoined()) {
-            std::cerr << "peer " << i->publicId() << " index: " << i->_index.first << " " << i->_index.second << " has neighbours: " << i->_upId << " " << i->_upIdIndex.first << " " << i->_upIdIndex.second << " | " << i->_downId << " " << i->_downIdIndex.first << " " << i->_downIdIndex.second << " | " << i->_rightId << " " << i->_rightIdIndex.first << " " << i->_rightIdIndex.second << " | " << i->_leftId << " " << i->_leftIdIndex.first << " " << i->_leftIdIndex.second << "\n";
-        }
-    }*/
 
 }
 
@@ -779,6 +730,7 @@ json TorusPeer::buildPaymentRoutePayload(double amount, bool sender) const {
         payload["myLeftIndex"] = {_leftIdIndex.first, _leftIdIndex.second};
         payload["myRightIndex"] = {_rightIdIndex.first, _rightIdIndex.second};
         payload["myIndex"] =  {_index.first, _index.second};
+        // getFunds returns first mine, second other
         std::pair<double,double> upCapacity = _state->getFunds("up");
         std::pair<double,double> downCapacity = _state->getFunds("down");
         std::pair<double,double> rightCapacity = _state->getFunds("right");
@@ -791,14 +743,67 @@ json TorusPeer::buildPaymentRoutePayload(double amount, bool sender) const {
     return payload;
 }
 
-/*
-json TorusPeer::buildPaymentPayload(interfaceId destination, double amount) const {
+json TorusPeer::buildRebalanceRoutePayload(bool sender) const {
     json payload;
-    payload["type"] = "payment";
-    payload["from"] = publicId();
-    payload["to"] = destination;
-    payload["amount"] = amount;
-    return payload;
+    
+    if (sender) {
+        payload["type"] = "rebelanceRouteRequest";
+        payload["from"] = publicId();
+    }
+    else {
+        payload["type"] = "rebalanceRouteResponse";
+        payload["from"] = publicId();
+        payload["myUp"] = _upId;
+        payload["myDown"] = _downId;
+        payload["myRight"] = _rightId;
+        payload["myLeft"] = _leftId;
+        payload["myUpIndex"] = {_upIdIndex.first, _upIdIndex.second};
+        payload["myDownIndex"] = {_downIdIndex.first, _downIdIndex.second};
+        payload["myLeftIndex"] = {_leftIdIndex.first, _leftIdIndex.second};
+        payload["myRightIndex"] = {_rightIdIndex.first, _rightIdIndex.second};
+        payload["myIndex"] =  {_index.first, _index.second};
+        // getFunds returns first mine, second other
+        std::pair<double,double> upCapacity = _state->getFunds("up");
+        std::pair<double,double> downCapacity = _state->getFunds("down");
+        std::pair<double,double> rightCapacity = _state->getFunds("right");
+        std::pair<double,double> leftCapacity = _state->getFunds("left");
+        payload["upCapacity"] = {upCapacity.first,upCapacity.second};
+        payload["downCapacity"] = {downCapacity.first,downCapacity.second};
+        payload["rightCapacity"] = {rightCapacity.first,rightCapacity.second};
+        payload["leftCapacity"] = {leftCapacity.first,leftCapacity.second};
+    }
 
-}*/ // namespace quantas
+    return payload;
+}
+
+json TorusPeer::buildRebalanceRequestPayload(double amount, interfaceId rebalanceWith, int index) const {
+    json payload;
+
+    payload["type"] = "rebalanceRequest";
+    payload["from"] = publicId();
+    payload["amount"] = amount;
+    payload["rebalanceWith"] = rebalanceWith;
+    payload["index"] = index;
+
+    return payload;
+}
+
+// searching peer will try multiple routes
+// therefore, routeIndex used to indicate rebalancing
+// for which route failed
+json TorusPeer::buildRebalanceResultPayload(bool success) const {
+    json payload;
+
+    if (success) {
+        payload["type"] = "rebalanceSuccess";
+        payload["from"] = publicId();
+    }
+    else {
+        payload["type"] = "rebalanceFailed";
+        payload["from"] = publicId();
+    }
+
+    return payload;
+}   
+
 }

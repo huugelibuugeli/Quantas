@@ -20,7 +20,7 @@
 # Configure this for the specific input file.
 # Make sure to include the path to the input file 
 
-#INPUTFILE := quantas/TorusPeer2/TorusInput.json
+#INPUTFILE := quantas/TorusPeer/TorusInput.json
 
 INPUTFILE := quantas/TorusPeer/TorusInput1.json
 

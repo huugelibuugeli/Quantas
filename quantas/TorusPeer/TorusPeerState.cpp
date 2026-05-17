@@ -6,23 +6,6 @@
 namespace quantas {
 
 
-// default implementations for state functions. Should never be called
-void TorusPeerState::createUpChannel(json msg) {
-    std::cerr << "Default createUpChannel called. This should not happen.\n";
-}
-void TorusPeerState::createDownChannel(json msg) {
-    std::cerr << "Default createDownChannel called. This should not happen.\n";
-}
-void TorusPeerState::createRightChannel(json msg) {
-    std::cerr << "Default createRightChannel called. This should not happen.\n";
-}
-void TorusPeerState::createLeftChannel(json msg) {
-    std::cerr << "Default createLeftChannel called. This should not happen.\n";
-}
-void TorusPeerState::computation(json msg) {
-    std::cerr << "Default computation called. This should not happen.\n";
-}
-
 void TorusPeerState::createChannels(json msg) {
     if (msg["location"] == "up") {
         createUpChannel(msg);
@@ -44,11 +27,8 @@ void NotJoinedState::preComputation() {
     if (_peer->_readyToJoin) {
         if (!_createdChannel) {
             findDestination();
-            //std::cerr << "_peer address: " << _peer << ", publicId: " << _peer->publicId() << "\n";
-            //std::cerr << "ATTEMPTING TO ACCESS PEER MEMBER VARIABLE DESTINATION: " << _peer->_dest.first << " " << _peer->_dest.second << std::endl;
-            //std::cerr << "SUCCESS\n";
+
             if (_peer->_destHasValue && !_peer->_startedSearch) {
-                //std::cerr << "SENDING PATH FIND PAYLOAD\n";
                 _peer->_startedSearch = true;
                 _peer->_visited.insert(std::make_pair(_peer->_bootStrap, std::make_pair(0,0)));
                 json msg = _peer->buildPathFindPayload(_peer->_dest);
@@ -214,7 +194,7 @@ void NotJoinedState::createLeftChannel(json msg) {
 void NotJoinedState::computation(json msg) {
 
     if (msg["type"] == "route") {
-        std::cerr << _peer->publicId() << " received route with next: " << msg["nextPeer"] << "\n";
+        //std::cerr << _peer->publicId() << " received route with next: " << msg["nextPeer"] << "\n";
         //if (_peer->_dest.first == -1)  {
             if ((msg["funds"] > _peer->_funds && _peer->_lastMessage["funds"] < _peer->_funds) ||
                 (msg["funds"] < _peer->_funds && _peer->_lastMessage["funds"] > _peer->_funds)) {
@@ -250,21 +230,16 @@ void NotJoinedState::computation(json msg) {
 void NotJoinedState::findDestination() {
     Packet packet;
     if (_peer->_readyToJoin) {
+
         // returns index of peer with hole that 
         // has closest funds to caller
-        //std::cerr << "peer: " << _peer->publicId() << " is looking for hole with closest funds\n";
         auto newDest = _peer->findBestHole();
         if (newDest.second && ((_peer->_destHasValue && newDest.first != _peer->_dest) || !_peer->_destHasValue)) {
-            //std::cerr << "peer: " << _peer->publicId() << " found hole with index: " << newDest.first.first << " " << newDest.first.second << "\n";
+
             _peer->_dest = newDest.first;
             _peer->_destHasValue = true;
 
-            //std::cerr << "MADE TJEITJETHIEHQTIOHQTH \n";
-
-            size_t dequeSize = _peer->_toVisit.size();
             _peer->clearToVisit();
-
-            //std::cerr << " dasdasfasf\n";
 
             auto it = _peer->_visited.begin();
             while (it != _peer->_visited.end()) {
@@ -287,8 +262,7 @@ void NotJoinedState::findDestination() {
         // if hole status changed, scrap all messages unless its a create channel message
         if (!newDest.second) {
             _peer->_destHasValue = false;
-            std::cerr << "STARTING SEARCH WITHOUT DESTINATION\n";
-            std::cerr << "SEARCHING WITH FUNDS: " << _peer->_funds;
+
             while (!_peer->inStreamEmpty() && _peer->_dest.first != -1) {
                 packet = _peer->popInStream();
                 if (packet.getMessage()["type"] == "channel")
@@ -301,50 +275,10 @@ void NotJoinedState::findDestination() {
                 _startedRoute = true;
                 _peer->_dest = newDest.first;
                 json message = _peer->buildJoinPayload(_peer->_dest);
-                std::cerr << _peer->publicId() << " is sending bootstrap join message to " << _peer->_bootStrap << "\n";
                 _peer->unicastTo(message, _peer->_bootStrap);
             }
         }
         
-
-        std::cerr << " end of findDestination call\n";
-
-        /*
-        
-        // if hole status changed to no hole, scrap all messages unless its a create channel message
-        if (newDest.first == -1 && _peer->_dest.first != -1) {
-            while(!_peer->inStreamEmpty()) {
-                packet = _peer->popInStream();
-                if (packet.getMessage()["type"] == "channel")
-                    break;
-            }
-            if (packet.getMessage()["type"] == "channel") {
-                createChannels(packet.getMessage());
-            }/*
-            else {
-            _peer->_dest = {-1,-1};
-            json message = _peer->buildJoinPayload(_peer->_dest);
-            std::cerr << _peer->publicId() << " is sending bootstrap join message to " << _peer->_bootStrap << " with dest: " << _peer->_dest.first << " " << _peer->_dest.second << "\n";
-            _peer->unicastTo(message, _peer->_bootStrap);
-            }
-        }
-        // if hole status changed, scrap all messages unless its a create channel message
-        else if (_peer->_dest.first == -1 && newDest.first != -1) {
-            while (!_peer->inStreamEmpty()) {
-                packet = _peer->popInStream();
-                if (packet.getMessage()["type"] == "channel")
-                    break;
-            }
-            if (packet.getMessage()["type"] == "channel") {
-                createChannels(packet.getMessage());
-            }
-            else {
-                _peer->_dest = newDest;
-                json message = _peer->buildJoinPayload(_peer->_dest);
-                std::cerr << _peer->publicId() << " is sending bootstrap join message to " << _peer->_bootStrap << " with dest: " << _peer->_dest.first << " " << _peer->_dest.second << "\n";
-                _peer->unicastTo(message, _peer->_bootStrap);
-            }
-        }*/
     }
 }
 
@@ -352,12 +286,19 @@ void NotJoinedState::findDestination() {
 // joined state
 //
 
-
-
+// peer alternates between payment transactions and rebalance transactions
+// peer won't start a new transaction until previous one fails or completes
 void JoinedState::preComputation() {
-    startPayment();
-}
+    if (_lastWasRebalance || _rebalanceQueue.empty()) {
+        startPayment();
+        _lastWasRebalance = false;
+    }
+    else {
+        startRebalance();
+        _lastWasRebalance = true;
+    }
 
+}
 
 void JoinedState::createUpChannel(json msg) {
     _peer->_downId = msg["from"];
@@ -402,15 +343,13 @@ void JoinedState::createLeftChannel(json msg) {
 
 void JoinedState::computation(json msg) {
 
-    //std::cerr << _peer->publicId() << " received " << msg["type"] << " from " << msg["from"] << std::endl;
 
     if (msg["type"] == "join") {
         if (_peer->_index.first == msg["destination"][0] && _peer->_index.second == msg["destination"][1]) {
-            //std::cerr << "JOINED PEER MAKKING STEPS WITH " << _peer->_horizontalSteps << " " << _peer->_verticalSteps << std::endl;
             std::pair<int,int> steps = std::make_pair(_peer->_horizontalSteps, _peer->_verticalSteps);
 
+            // peer has larger funds
             if (msg["funds"] > _peer->_funds) {
-                //std::cerr << "LARGER JOIN\n";
                 if (_peer->hasHoleLocation("right") && _peer->hasHoleLocation("up")) { 
 
                     if (randMod(2) == 0) {
@@ -595,19 +534,15 @@ void JoinedState::computation(json msg) {
         }
     } 
     else if (msg["type"] == "channel") {
-        //std::cerr << "joined peer " <<  _peer->publicId() << " received channel message from peer " << msg["from"] << " to create channel in direction " << msg["location"] << std::endl;
         createChannels(msg);
         json reply = _peer->buildResponsePayload();
         _peer->unicastTo(reply, msg["from"]);
     }
     else if (msg["type"] == "pathFind") {
-        //std::cerr << _peer->publicId() << " received path find message from peer " << msg["from"] << " with destination: " << msg["destination"][0] << " " << msg["destination"][1] << std::endl;
         json response = _peer->buildPathFindResponsePayload();
         _peer->unicastTo(response, msg["from"]);
     }
     else if (msg["type"] == "response") {
-
-        //std::cerr << _peer->publicId() << " xxx received response message from peer " << msg["from"] << " with index: " << msg["myIndex"][0] << " " << msg["myIndex"][1] << std::endl;
 
         if (msg["from"] == _peer->_rightId) {
             _peer->_rightIdIndex = std::make_pair(msg["myIndex"][0], msg["myIndex"][1]);
@@ -623,11 +558,56 @@ void JoinedState::computation(json msg) {
         }
     }
     else if (msg["type"] == "paymentRouteRequest") {
+        //std::cerr << _peer->publicId() << " Received paymentRouteRequest\n";
         json response = _peer->buildPaymentRoutePayload(0,false);
         _peer->unicastTo(response,msg["from"]);
     }
     else if (msg["type"] == "paymentRouteResponse") {
+        //std::cerr << _peer->publicId() << " Received paymentRouteResponse\n";
         paymentRoute(msg);
     }
+    else if (msg["type"] == "rebalanceRequest") {
+
+        LogWriter::pushValue("rebalanceRequestRec", 1);
+
+        //std::cerr << _peer->publicId() << " Received rebalanceRequests\n";
+        double amount = msg["amount"];
+        interfaceId rebalanceWith = msg["rebalanceWith"];
+
+        RebalanceTx rb(msg["from"], rebalanceWith, amount);
+
+        _rebalanceQueue.push_back(rb);
+
+        //startRebalance(amount, msg["rebalanceWith"]);
+    }
+    else if (msg["type"] == "rebalanceRouteRequest") {
+        //std::cerr << _peer->publicId() << " Received rebalanceRouteRequest\n";
+        json response = _peer->buildRebalanceRoutePayload(false);
+        _peer->unicastTo(response,msg["from"]);
+    } 
+    else if (msg["type"] == "rebalanceRouteResponse") {
+        //std::cerr << _peer->publicId() << " Received rebalanceRouteResponse\n";
+        rebalanceRoute(msg);
+    }
+    else if (msg["type"] == "rebalanceSuccess" && _hasRoute == -1) {
+
+        LogWriter::pushValue("rebalanceOccurred", 1);
+        //std::cerr << _peer->publicId() << " Received rebalanceSuccess\n";
+
+        if (msg["routeIndex"] == _rebalancingSession) 
+            --_rebalancesNeeded;
+
+        if (_rebalancesNeeded == 0 && _rebalancingRoute) {
+            makePayment();
+        }
+
+    }
+    else if (msg["type"] == "rebalanceFailed") {
+        //std::cerr << _peer->publicId() << " Received rebalanceFailed\n";
+        _rebalancingRoute = false;
+        _rebalancesNeeded = 0;
+    }
+    
+    
 }
 }
